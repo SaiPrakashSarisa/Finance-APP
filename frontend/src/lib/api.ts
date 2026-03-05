@@ -1,4 +1,5 @@
-const API_BASE = process.env.API_BASE || 'http://localhost:5000/api';
+// const API_BASE = process.env.API_BASE || 'http://localhost:5000/api';
+const API_BASE = "https://finance-app-axlj.onrender.com/api";
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${endpoint}`, {
