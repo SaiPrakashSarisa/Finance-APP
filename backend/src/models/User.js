@@ -22,6 +22,13 @@ const userSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  settings: {
+    dashboardRange: {
+      type: String,
+      enum: ['1m', '3m', '6m', '1y', 'all'],
+      default: '1m'
+    }
   }
 });
 
