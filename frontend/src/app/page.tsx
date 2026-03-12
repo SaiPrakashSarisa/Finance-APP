@@ -11,7 +11,7 @@ import {
   ArrowDownLeft, Landmark,
 } from 'lucide-react';
 import SummaryCard from '@/components/SummaryCard';
-import { getDashboard, getCategoryBreakdown, getMonthlyTrend } from '@/lib/api';
+import { getDashboard, getCategoryBreakdown, getMonthlyTrend, getUserSettings } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
 const PIE_COLORS = ['#f43f5e', '#8b5cf6', '#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#14b8a6', '#f97316'];
@@ -22,15 +22,18 @@ export default function DashboardPage() {
   const [categories, setCategories] = useState<any[]>([]);
   const [trend, setTrend] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState('1m');
 
   useEffect(() => {
     async function load() {
       try {
-        const [d, c, t] = await Promise.all([
+        const [settingsRes, d, c, t] = await Promise.all([
+          getUserSettings(),
           getDashboard(),
           getCategoryBreakdown(),
           getMonthlyTrend(),
         ]);
+        setRange(settingsRes.data.dashboardRange || '1m');
         setDashboard(d.data);
         setCategories(c.data);
 
@@ -73,6 +76,14 @@ export default function DashboardPage() {
     );
   }
 
+  const rangeLabels: Record<string, string> = {
+    '1m': 'This Month',
+    '3m': 'Last 3 Months',
+    '6m': 'Last 6 Months',
+    '1y': 'Last 1 Year',
+    'all': 'All Time'
+  };
+
   const accountDonut = dashboard.accounts?.map((a: any, i: number) => ({
     name: a.name,
     value: Math.abs(a.balance),
@@ -97,18 +108,23 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <motion.h1
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-2xl sm:text-3xl font-bold text-white mb-6"
-      >
-        Dashboard
-      </motion.h1>
+      <div className="mb-6">
+        <motion.h1
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-2xl sm:text-3xl font-bold text-white mb-1"
+        >
+          Dashboard
+        </motion.h1>
+        <p className="text-muted text-sm flex items-center gap-2">
+          Showing data for <span className="text-violet-400 font-medium">{rangeLabels[range]}</span>
+        </p>
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-10">
-        <SummaryCard label="Monthly Income" value={formatCurrency(dashboard.monthlyIncome)} icon={TrendingUp} color="emerald" delay={0} />
-        <SummaryCard label="Monthly Expenses" value={formatCurrency(dashboard.monthlyExpense)} icon={TrendingDown} color="rose" delay={0.05} />
+        <SummaryCard label="Total Income" value={formatCurrency(dashboard.income)} icon={TrendingUp} color="emerald" delay={0} />
+        <SummaryCard label="Total Expenses" value={formatCurrency(dashboard.expense)} icon={TrendingDown} color="rose" delay={0.05} />
         <SummaryCard label="Net Savings" value={formatCurrency(dashboard.netSavings)} icon={PiggyBank} color="violet" delay={0.1} />
         <SummaryCard label="Receivables" value={formatCurrency(dashboard.totalReceivables)} icon={ArrowUpRight} color="amber" delay={0.15} />
         <SummaryCard label="Liabilities" value={formatCurrency(dashboard.totalLiabilities)} icon={ArrowDownLeft} color="rose" delay={0.2} />
@@ -159,7 +175,7 @@ export default function DashboardPage() {
           transition={{ delay: 0.35 }}
           className="glass-card p-6"
         >
-          <h3 className="text-sm font-semibold text-white mb-4">Income vs Expenses (6 Months)</h3>
+          <h3 className="text-sm font-semibold text-white mb-4">Income vs Expenses (Trends)</h3>
           {trend.length === 0 ? (
             <p className="text-muted text-sm text-center py-10">No trend data available</p>
           ) : (
