@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   description: "Track income, expenses, transfers, credits, and net worth with smart insights.",
 };
 
+import { AuthProvider } from "@/context/AuthContext";
+import MainLayout from "@/components/MainLayout";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -15,13 +18,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="antialiased">
-        <Sidebar />
-        {/* Main content area — uses CSS class for responsive offset */}
-        <main className="main-content">
-          <div className="content-inner">
-            {children}
-          </div>
-        </main>
+        <AuthProvider>
+          <MainLayout>{children}</MainLayout>
+        </AuthProvider>
       </body>
     </html>
   );

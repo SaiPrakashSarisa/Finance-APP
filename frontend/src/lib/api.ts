@@ -2,13 +2,25 @@ const API_BASE = "http://localhost:5000/api";
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${endpoint}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: { 
+      'Content-Type': 'application/json',
+      ...options?.headers 
+    },
+    credentials: 'include', // Ensure cookies are sent
   });
   const json = await res.json();
   if (!json.success) throw new Error(json.error || 'API error');
   return json;
 }
+
+// ── Auth ──
+export const register = (data: any) =>
+  request<any>('/auth/register', { method: 'POST', body: JSON.stringify(data) });
+export const login = (data: any) =>
+  request<any>('/auth/login', { method: 'POST', body: JSON.stringify(data) });
+export const logout = () => request<any>('/auth/logout');
+export const getMe = () => request<any>('/auth/me');
 
 // ── Accounts ──
 export const getAccounts = () => request<any>('/accounts');
