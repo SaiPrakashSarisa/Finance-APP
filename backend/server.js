@@ -21,8 +21,7 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/finance_ap
 // Middleware
 const allowedOrigins = [
     "http://localhost:3000",
-    "https://finance-app-swart-nine.vercel.app",
-    "https://finance-app-axlj.onrender.com",
+    "https://ss-money-manager.vercel.app",
 ];
 app.use(cors({
     origin: allowedOrigins,
