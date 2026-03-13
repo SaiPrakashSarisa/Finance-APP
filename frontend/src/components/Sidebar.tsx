@@ -14,7 +14,9 @@ import {
     X,
     DollarSign,
     Settings,
+    LogOut,
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 const navItems = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -28,6 +30,7 @@ const navItems = [
 export default function Sidebar() {
     const pathname = usePathname();
     const [mobileOpen, setMobileOpen] = useState(false);
+    const { logout } = useAuth();
 
     const navContent = (
         <nav className="flex flex-col gap-3 mt-10 px-1">
@@ -73,7 +76,18 @@ export default function Sidebar() {
                     </div>
                 </div>
                 <div className="mt-2 border-b border-border/50" />
-                {navContent}
+                <div className="flex-1 overflow-y-auto">
+                    {navContent}
+                </div>
+                <div className="mt-auto pt-4 border-t border-border/50">
+                    <button
+                        onClick={logout}
+                        className="flex items-center gap-3 px-5 py-3.5 text-rose-400 font-medium hover:bg-rose-500/10 rounded-xl transition-all w-full text-sm"
+                    >
+                        <LogOut size={18} />
+                        <span>Sign Out</span>
+                    </button>
+                </div>
             </aside>
 
             {/* Mobile Header */}
@@ -125,6 +139,15 @@ export default function Sidebar() {
                                 </button>
                             </div>
                             {navContent}
+                            <div className="mt-8 pt-4 border-t border-border/50">
+                                <button
+                                    onClick={logout}
+                                    className="flex items-center gap-3 px-5 py-3.5 text-rose-400 font-medium hover:bg-rose-500/10 rounded-xl transition-all w-full text-sm"
+                                >
+                                    <LogOut size={18} />
+                                    <span>Sign Out</span>
+                                </button>
+                            </div>
                         </motion.aside>
                     </>
                 )}
