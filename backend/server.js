@@ -24,7 +24,7 @@ const allowedOrigins = [
     "https://finance-app-swart-nine.vercel.app",
 ];
 app.use(cors({
-    origin: "http://localhost:3000",
+    origin: allowedOrigins,
     credentials: true
 }));
 app.use(express.json());

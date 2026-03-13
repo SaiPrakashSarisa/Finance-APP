@@ -1,5 +1,4 @@
-// const API_BASE = process.env.API_BASE || 'http://localhost:5000/api';
-const API_BASE = "https://finance-app-axlj.onrender.com/api";
+const API_BASE = "http://localhost:5000/api";
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -80,3 +79,8 @@ export const getCategoryBreakdown = (month?: number, year?: number) => {
 };
 export const getMonthlyTrend = () => request<any>('/analytics/monthly-trend');
 export const getInsights = () => request<any>('/analytics/insights');
+
+// ── User Settings ──
+export const getUserSettings = () => request<any>('/user/settings');
+export const updateUserSettings = (data: any) =>
+  request<any>('/user/settings', { method: 'PATCH', body: JSON.stringify(data) });

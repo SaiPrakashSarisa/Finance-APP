@@ -6,7 +6,7 @@ import {
     PiggyBank, TrendingDown, Flame, Award,
     ShieldAlert, HeartPulse,
 } from 'lucide-react';
-import { getInsights } from '@/lib/api';
+import { getInsights, getUserSettings } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
 interface InsightCard {
@@ -18,15 +18,28 @@ interface InsightCard {
     bgClass: string;
 }
 
+const RANGE_LABELS: Record<string, string> = {
+    '1m': 'this month',
+    '3m': 'the last 3 months',
+    '6m': 'the last 6 months',
+    '1y': 'the last year',
+    'all': 'all time'
+};
+
 export default function InsightsPage() {
     const [data, setData] = useState<any>(null);
+    const [settings, setSettings] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         async function load() {
             try {
-                const res = await getInsights();
-                setData(res.data);
+                const [insRes, setRes] = await Promise.all([
+                    getInsights(),
+                    getUserSettings()
+                ]);
+                setData(insRes.data);
+                setSettings(setRes.data);
             } catch (err) { console.error(err); }
             finally { setLoading(false); }
         }
@@ -49,6 +62,9 @@ export default function InsightsPage() {
         );
     }
 
+    const range = settings?.dashboardRange || '1m';
+    const rangeLabel = RANGE_LABELS[range] || 'this month';
+
     const cards: InsightCard[] = [
         {
             label: 'Savings Rate',
@@ -61,7 +77,7 @@ export default function InsightsPage() {
         {
             label: 'Avg Daily Expense',
             value: formatCurrency(data.avgDailyExpense),
-            subtitle: 'This month\'s daily average',
+            subtitle: `Daily average for ${rangeLabel}`,
             icon: TrendingDown,
             color: 'text-rose-400',
             bgClass: 'gradient-rose',
@@ -77,7 +93,7 @@ export default function InsightsPage() {
         {
             label: 'Top Spending Category',
             value: data.highestSpendingCategory?.name || 'N/A',
-            subtitle: data.highestSpendingCategory ? formatCurrency(data.highestSpendingCategory.total) + ' this month' : 'No expenses this month',
+            subtitle: data.highestSpendingCategory ? formatCurrency(data.highestSpendingCategory.total) + ` for ${rangeLabel}` : `No expenses for ${rangeLabel}`,
             icon: Award,
             color: 'text-violet-400',
             bgClass: 'gradient-violet',
@@ -106,7 +122,7 @@ export default function InsightsPage() {
                 Smart Insights
             </motion.h1>
             <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="text-muted mb-8">
-                AI-powered analysis of your financial health this month.
+                AI-powered analysis of your financial health for {rangeLabel}.
             </motion.p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -140,11 +156,11 @@ export default function InsightsPage() {
                 transition={{ delay: 0.5 }}
                 className="glass-card p-5 mt-6"
             >
-                <h3 className="text-sm font-semibold text-white mb-4">Monthly Overview</h3>
+                <h3 className="text-sm font-semibold text-white mb-4">Total Overview ({rangeLabel})</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                     {[
-                        { label: 'Income', value: formatCurrency(data.monthlyIncome), color: 'text-emerald-400' },
-                        { label: 'Expenses', value: formatCurrency(data.monthlyExpense), color: 'text-rose-400' },
+                        { label: 'Income', value: formatCurrency(data.income), color: 'text-emerald-400' },
+                        { label: 'Expenses', value: formatCurrency(data.expense), color: 'text-rose-400' },
                         { label: 'Balance', value: formatCurrency(data.totalBalance), color: 'text-blue-400' },
                         { label: 'Receivables', value: formatCurrency(data.totalReceivables), color: 'text-amber-400' },
                         { label: 'Liabilities', value: formatCurrency(data.totalLiabilities), color: 'text-rose-400' },

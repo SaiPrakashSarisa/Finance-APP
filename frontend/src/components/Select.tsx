@@ -15,6 +15,7 @@ interface SelectProps {
     onChange: (value: string) => void;
     placeholder?: string;
     className?: string;
+    disabled?: boolean;
 }
 
 export const Select: React.FC<SelectProps> = ({
@@ -23,6 +24,7 @@ export const Select: React.FC<SelectProps> = ({
     onChange,
     placeholder = 'Select an option',
     className = '',
+    disabled = false,
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -53,8 +55,9 @@ export const Select: React.FC<SelectProps> = ({
             {/* Trigger Button */}
             <button
                 type="button"
-                onClick={() => setIsOpen(!isOpen)}
-                className={`input-dark flex items-center justify-between text-left cursor-pointer ${isOpen ? 'border-accent-violet ring-4 ring-accent-violet/15' : ''
+                onClick={() => !disabled && setIsOpen(!isOpen)}
+                disabled={disabled}
+                className={`input-dark flex items-center justify-between text-left ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${isOpen ? 'border-accent-violet ring-4 ring-accent-violet/15' : ''
                     }`}
             >
                 <span className={selectedOption ? 'text-foreground' : 'text-muted'}>

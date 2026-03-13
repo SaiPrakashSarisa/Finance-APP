@@ -2,15 +2,49 @@ const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
 const Account = require('../models/Account');
 const creditService = require('./creditService');
+const User = require('../models/User');
 
 const analyticsService = {
-    // Dashboard summary for a given month
-    async getDashboard(userId, month, year) {
-        const startDate = new Date(year, month - 1, 1);
-        const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+    // Helper to get date range based on month/year OR user settings
+    async _getDateRange(userId, month, year) {
+        let startDate, endDate;
 
-        const [monthlyTotals, accounts, creditTotals] = await Promise.all([
-            // Monthly income/expense (excluding transfers)
+        if (month !== null && year !== null && month !== undefined && year !== undefined) {
+            startDate = new Date(year, month - 1, 1);
+            endDate = new Date(year, month, 0, 23, 59, 59, 999);
+        } else {
+            const user = await User.findById(userId).select('settings');
+            const range = user?.settings?.dashboardRange || '1m';
+
+            endDate = new Date();
+            endDate.setHours(23, 59, 59, 999);
+            startDate = new Date();
+
+            if (range === '1m') {
+                startDate.setDate(1);
+            } else if (range === '3m') {
+                startDate.setMonth(endDate.getMonth() - 2);
+                startDate.setDate(1);
+            } else if (range === '6m') {
+                startDate.setMonth(endDate.getMonth() - 5);
+                startDate.setDate(1);
+            } else if (range === '1y') {
+                startDate.setMonth(endDate.getMonth() - 11);
+                startDate.setDate(1);
+            } else {
+                startDate = new Date(0); // All time
+            }
+            startDate.setHours(0, 0, 0, 0);
+        }
+        return { startDate, endDate };
+    },
+
+    // Dashboard summary for a given range
+    async getDashboard(userId, month, year) {
+        const { startDate, endDate } = await this._getDateRange(userId, month, year);
+
+        const [totals, accounts, creditTotals] = await Promise.all([
+            // Income/expense totals for range
             Transaction.aggregate([
                 {
                     $match: {
@@ -32,14 +66,14 @@ const analyticsService = {
             creditService.getTotals(userId)
         ]);
 
-        const income = monthlyTotals.find(t => t._id === 'income')?.total || 0;
-        const expense = monthlyTotals.find(t => t._id === 'expense')?.total || 0;
+        const income = totals.find(t => t._id === 'income')?.total || 0;
+        const expense = totals.find(t => t._id === 'expense')?.total || 0;
         const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
         const netWorth = totalBalance + creditTotals.totalReceivables - creditTotals.totalLiabilities;
 
         return {
-            monthlyIncome: income,
-            monthlyExpense: expense,
+            income,
+            expense,
             netSavings: income - expense,
             totalReceivables: creditTotals.totalReceivables,
             totalLiabilities: creditTotals.totalLiabilities,
@@ -50,8 +84,7 @@ const analyticsService = {
 
     // Expense breakdown by category
     async getCategoryBreakdown(userId, month, year) {
-        const startDate = new Date(year, month - 1, 1);
-        const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+        const { startDate, endDate } = await this._getDateRange(userId, month, year);
 
         return Transaction.aggregate([
             {
@@ -114,17 +147,16 @@ const analyticsService = {
     },
 
     // Smart insights
-    async getInsights(userId) {
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const dayOfMonth = now.getDate();
+    async getInsights(userId, month, year) {
+        const { startDate, endDate } = await this._getDateRange(userId, month, year);
+        const dayOfMonth = (new Date()).getDate(); // Keep for daily avg calculation
 
         const [monthlyData, accounts, creditTotals, last30DaysExpenses] = await Promise.all([
             Transaction.aggregate([
                 {
                     $match: {
                         userId: new mongoose.Types.ObjectId(userId),
-                        date: { $gte: startOfMonth },
+                        date: { $gte: startDate, $lte: endDate },
                         type: { $in: ['income', 'expense'] }
                     }
                 },
@@ -163,13 +195,13 @@ const analyticsService = {
             ? (creditTotals.totalLiabilities / totalAssets * 100)
             : 0;
 
-        // Get highest spending category this month
+        // Get highest spending category in range
         const highestCategory = await Transaction.aggregate([
             {
                 $match: {
                     userId: new mongoose.Types.ObjectId(userId),
                     type: 'expense',
-                    date: { $gte: startOfMonth }
+                    date: { $gte: startDate, $lte: endDate }
                 }
             },
             {
@@ -199,8 +231,8 @@ const analyticsService = {
             emergencyFundMonths: Math.round(emergencyFundMonths * 10) / 10,
             creditExposureRatio: Math.round(creditExposureRatio * 100) / 100,
             highestSpendingCategory: highestCategory[0] || null,
-            monthlyIncome: income,
-            monthlyExpense: expense,
+            income,
+            expense,
             totalBalance,
             totalReceivables: creditTotals.totalReceivables,
             totalLiabilities: creditTotals.totalLiabilities
