@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Pencil, Trash2, ArrowLeftRight, Filter, X } from 'lucide-react';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getAccounts, getCategories, getCredits } from '@/lib/api';
@@ -33,6 +33,15 @@ export default function TransactionsPage() {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
 
+    // Pagination
+    const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(20);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [isMobile, setIsMobile] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const observerTarget = useRef<HTMLDivElement>(null);
+
     // Form
     const emptyForm = {
         type: 'expense',
@@ -48,6 +57,11 @@ export default function TransactionsPage() {
 
     const loadData = useCallback(async () => {
         try {
+            const isAppending = isMobile && page > 1;
+            if (isAppending) {
+                setLoadingMore(true);
+            }
+
             const params: Record<string, string> = {};
             if (typeFilter !== 'all') params.type = typeFilter;
             if (accountFilter) params.accountId = accountFilter;
@@ -55,6 +69,8 @@ export default function TransactionsPage() {
             if (creditFilter) params.creditId = creditFilter;
             if (startDate) params.startDate = startDate;
             if (endDate) params.endDate = endDate;
+            params.page = String(page);
+            params.limit = String(isMobile ? Math.max(limit, 50) : limit);
 
             const [txRes, accRes, catRes, credRes] = await Promise.all([
                 getTransactions(Object.keys(params).length > 0 ? params : undefined),
@@ -62,7 +78,10 @@ export default function TransactionsPage() {
                 getCategories(),
                 getCredits(),
             ]);
-            setTransactions(txRes.transactions || []);
+
+            setTransactions(prev => isAppending ? [...prev, ...(txRes.transactions || [])] : (txRes.transactions || []));
+            setTotalPages(txRes.pages || 1);
+            setTotalItems(txRes.total || 0);
             setAccounts(accRes.data);
             setCategories(catRes.data);
             setCredits(credRes.data);
@@ -70,10 +89,47 @@ export default function TransactionsPage() {
             console.error(err);
         } finally {
             setLoading(false);
+            setLoadingMore(false);
         }
-    }, [typeFilter, accountFilter, categoryFilter, creditFilter, startDate, endDate]);
+    }, [typeFilter, accountFilter, categoryFilter, creditFilter, startDate, endDate, page, limit, isMobile]);
 
     useEffect(() => { loadData(); }, [loadData]);
+
+    useEffect(() => {
+        const checkMobile = () => {
+            const mobile = window.innerWidth < 768;
+            setIsMobile(mobile);
+        };
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
+    useEffect(() => {
+        if (isMobile && limit < 50) {
+            setLimit(50);
+            setPage(1);
+        }
+    }, [isMobile, limit]);
+
+    useEffect(() => {
+        if (!isMobile || loading || loadingMore || page >= totalPages) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    setPage((p) => p + 1);
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current);
+        }
+
+        return () => observer.disconnect();
+    }, [isMobile, loading, loadingMore, page, totalPages]);
 
     const openEdit = (tx: any) => {
         setEditingTransaction(tx);
@@ -147,6 +203,7 @@ export default function TransactionsPage() {
         setCreditFilter('');
         setStartDate('');
         setEndDate('');
+        setPage(1);
     };
 
     const hasActiveFilters = typeFilter !== 'all' || accountFilter || categoryFilter || creditFilter || startDate || endDate;
@@ -171,7 +228,7 @@ export default function TransactionsPage() {
         return categories.find((c) => c._id === idOrObj)?.name || '—';
     };
 
-    if (loading) {
+    if (loading && !isMobile && page === 1) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
                 <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
@@ -207,7 +264,7 @@ export default function TransactionsPage() {
                 {TYPE_TABS.map((tab) => (
                     <button
                         key={tab}
-                        onClick={() => setTypeFilter(tab)}
+                        onClick={() => { setTypeFilter(tab); setPage(1); }}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize whitespace-nowrap ${typeFilter === tab
                             ? 'bg-violet-500/20 text-violet-400'
                             : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -235,7 +292,7 @@ export default function TransactionsPage() {
                                     ...accounts.map((a) => ({ label: a.name, value: a._id })),
                                 ]}
                                 value={accountFilter}
-                                onChange={setAccountFilter}
+                                onChange={(val) => { setAccountFilter(val); setPage(1); }}
                             />
                         </div>
                         <div>
@@ -246,7 +303,7 @@ export default function TransactionsPage() {
                                     ...categories.map((c) => ({ label: c.name, value: c._id })),
                                 ]}
                                 value={categoryFilter}
-                                onChange={setCategoryFilter}
+                                onChange={(val) => { setCategoryFilter(val); setPage(1); }}
                             />
                         </div>
                         <div>
@@ -257,16 +314,16 @@ export default function TransactionsPage() {
                                     ...credits.filter(c => c.status !== 'settled').map((c) => ({ label: `${c.personName} (${c.type})`, value: c._id })),
                                 ]}
                                 value={creditFilter}
-                                onChange={setCreditFilter}
+                                onChange={(val) => { setCreditFilter(val); setPage(1); }}
                             />
                         </div>
                         <div>
                             <label className="block text-xs text-muted mb-1">From Date</label>
-                            <input type="date" className="input-dark" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                            <input type="date" className="input-dark" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }} />
                         </div>
                         <div>
                             <label className="block text-xs text-muted mb-1">To Date</label>
-                            <input type="date" className="input-dark" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                            <input type="date" className="input-dark" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} />
                         </div>
                     </div>
                     {hasActiveFilters && (
@@ -379,7 +436,59 @@ export default function TransactionsPage() {
                                 </div>
                             </motion.div>
                         ))}
+
+                        {/* Infinite Scroll Target */}
+                        {isMobile && page < totalPages && (
+                            <div ref={observerTarget} className="py-4 flex justify-center">
+                                {loadingMore ? (
+                                    <div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                    <span className="text-sm text-muted">Scroll for more...</span>
+                                )}
+                            </div>
+                        )}
                     </div>
+
+                    {/* Pagination Controls (Desktop Only) */}
+                    {!isMobile && totalItems > 0 && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 print:hidden">
+                            <div className="flex items-center gap-2 text-sm text-slate-400">
+                                <span>Showing</span>
+                                <Select
+                                    options={[
+                                        { label: '20', value: '20' },
+                                        { label: '50', value: '50' },
+                                        { label: '100', value: '100' },
+                                        { label: '200', value: '200' },
+                                    ]}
+                                    value={String(limit)}
+                                    onChange={(val) => { setLimit(Number(val)); setPage(1); }}
+                                    position="top"
+                                />
+                                <span>per page ({totalItems} total)</span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                    disabled={page === 1}
+                                    className="px-3 py-1.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    Previous
+                                </button>
+                                <span className="text-sm font-medium text-slate-300">
+                                    Page {page} of {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                    disabled={page >= totalPages}
+                                    className="px-3 py-1.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </>
             )}
 

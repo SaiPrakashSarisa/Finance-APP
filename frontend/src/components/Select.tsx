@@ -16,6 +16,7 @@ interface SelectProps {
     placeholder?: string;
     className?: string;
     disabled?: boolean;
+    position?: 'top' | 'bottom';
 }
 
 export const Select: React.FC<SelectProps> = ({
@@ -25,6 +26,7 @@ export const Select: React.FC<SelectProps> = ({
     placeholder = 'Select an option',
     className = '',
     disabled = false,
+    position = 'bottom',
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -73,12 +75,14 @@ export const Select: React.FC<SelectProps> = ({
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
-                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 4, scale: 1 }}
-                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                        initial={{ opacity: 0, y: position === 'top' ? 10 : -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: position === 'top' ? -4 : 4, scale: 1 }}
+                        exit={{ opacity: 0, y: position === 'top' ? 10 : -10, scale: 0.95 }}
                         transition={{ duration: 0.15, ease: 'easeOut' }}
-                        className="absolute z-[100] w-full bg-slate-900/98 backdrop-blur-2xl overflow-y-auto shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10 rounded-xl"
-                        style={{ maxHeight: '240px', marginTop: '4px' }}
+                        className={`absolute z-[100] w-full bg-slate-900/98 backdrop-blur-2xl overflow-y-auto shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10 rounded-xl ${
+                            position === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'
+                        }`}
+                        style={{ maxHeight: '240px' }}
                     >
                         <div className="py-1">
                             {options.length === 0 ? (
