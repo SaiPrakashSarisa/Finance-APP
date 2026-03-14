@@ -185,7 +185,7 @@ export default function TransactionsPage() {
                 <motion.h1
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="text-2xl sm:text-3xl font-bold text-white"
+                    className="text-xl md:text-2xl lg:text-3xl font-bold text-white"
                 >
                     Transactions
                 </motion.h1>
@@ -224,7 +224,7 @@ export default function TransactionsPage() {
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="glass-card p-6 mb-6"
+                    className="glass-card p-4 md:p-6 mb-4 md:mb-6"
                 >
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                         <div>
@@ -343,13 +343,13 @@ export default function TransactionsPage() {
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: i * 0.03 }}
-                                className="glass-card p-6"
+                                className="glass-card p-4"
                             >
                                 <div className="flex items-start justify-between mb-2">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
                                             <Badge label={tx.type} className={TRANSACTION_TYPE_COLORS[tx.type]} />
-                                            <span className="text-xs text-muted">{formatDate(tx.date)}</span>
+                                            <span className="text-[10px] sm:text-xs text-muted">{formatDate(tx.date)}</span>
                                         </div>
                                         <p className="text-sm text-white">
                                             {getAccountName(tx.accountId)}
@@ -362,12 +362,12 @@ export default function TransactionsPage() {
                                         {tx.note && <p className="text-xs text-slate-500 mt-1">{tx.note}</p>}
                                     </div>
                                     <div className="text-right">
-                                        <p className={`text-base font-bold ${tx.type === 'income' ? 'text-emerald-400' : tx.type === 'expense' ? 'text-rose-400' : tx.type === 'credit_repay' ? 'text-cyan-400' : 'text-violet-400'
+                                        <p className={`text-base sm:text-lg font-bold ${tx.type === 'income' ? 'text-emerald-400' : tx.type === 'expense' ? 'text-rose-400' : tx.type === 'credit_repay' ? 'text-cyan-400' : 'text-violet-400'
                                             }`}>
                                             {tx.type === 'income' || (tx.type === 'credit_repay' && tx.creditId?.type === 'given') ? '+' : tx.type === 'expense' || tx.type === 'credit_repay' ? '-' : ''}
                                             {formatCurrency(tx.amount)}
                                         </p>
-                                        <div className="flex gap-1 mt-1">
+                                        <div className="flex gap-1 mt-1 justify-end">
                                             <button onClick={() => openEdit(tx)} className="p-1 rounded text-slate-500 hover:text-white transition-colors">
                                                 <Pencil size={14} />
                                             </button>

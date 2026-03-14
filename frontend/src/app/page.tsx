@@ -112,17 +112,17 @@ export default function DashboardPage() {
         <motion.h1
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-2xl sm:text-3xl font-bold text-white mb-1"
+          className="text-xl md:text-2xl lg:text-3xl font-bold text-white mb-1"
         >
           Dashboard
         </motion.h1>
-        <p className="text-muted text-sm flex items-center gap-2">
+        <p className="text-xs sm:text-sm text-muted flex items-center gap-2">
           Showing data for <span className="text-violet-400 font-medium">{rangeLabels[range]}</span>
         </p>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 mb-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6 mb-8 md:mb-10">
         <SummaryCard label="Total Income" value={formatCurrency(dashboard.income)} icon={TrendingUp} color="emerald" delay={0} />
         <SummaryCard label="Total Expenses" value={formatCurrency(dashboard.expense)} icon={TrendingDown} color="rose" delay={0.05} />
         <SummaryCard label="Net Savings" value={formatCurrency(dashboard.netSavings)} icon={PiggyBank} color="violet" delay={0.1} />
@@ -132,15 +132,15 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
         {/* Expense Category Pie */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="glass-card p-6"
+          className="glass-card p-4 md:p-6"
         >
-          <h3 className="text-sm font-semibold text-white mb-4">Expense Breakdown</h3>
+          <h3 className="text-sm md:text-base font-semibold text-white mb-3 md:mb-4">Expense Breakdown</h3>
           {categories.length === 0 ? (
             <p className="text-muted text-sm text-center py-10">No expense data for this month</p>
           ) : (
@@ -164,7 +164,7 @@ export default function DashboardPage() {
                   formatter={(value: string) => <span className="text-xs text-slate-300">{value}</span>}
                 />
               </PieChart>
-            </ResponsiveContainer>
+          </ResponsiveContainer>
           )}
         </motion.div>
 
@@ -173,9 +173,9 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35 }}
-          className="glass-card p-6"
+          className="glass-card p-4 md:p-6"
         >
-          <h3 className="text-sm font-semibold text-white mb-4">Income vs Expenses (Trends)</h3>
+          <h3 className="text-sm md:text-base font-semibold text-white mb-3 md:mb-4">Income vs Expenses (Trends)</h3>
           {trend.length === 0 ? (
             <p className="text-muted text-sm text-center py-10">No trend data available</p>
           ) : (
@@ -189,7 +189,7 @@ export default function DashboardPage() {
                 <Bar dataKey="income" fill="#10b981" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="expense" fill="#f43f5e" radius={[4, 4, 0, 0]} />
               </BarChart>
-            </ResponsiveContainer>
+          </ResponsiveContainer>
           )}
         </motion.div>
 
@@ -198,9 +198,9 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="glass-card p-6 lg:col-span-2"
+          className="glass-card p-4 md:p-6 lg:col-span-2"
         >
-          <h3 className="text-sm font-semibold text-white mb-4">Account Balances</h3>
+          <h3 className="text-sm md:text-base font-semibold text-white mb-3 md:mb-4">Account Balances</h3>
           {accountDonut.length === 0 ? (
             <p className="text-muted text-sm text-center py-10">No accounts found</p>
           ) : (

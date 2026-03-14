@@ -117,7 +117,7 @@ export default function CreditsPage() {
     return (
         <div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <motion.h1 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-2xl sm:text-3xl font-bold text-white">
+                <motion.h1 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-xl md:text-2xl lg:text-3xl font-bold text-white">
                     Credits
                 </motion.h1>
                 <button onClick={openCreate} className="btn-primary flex items-center gap-2 self-start sm:self-auto">
@@ -157,12 +157,12 @@ export default function CreditsPage() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: i * 0.05 }}
-                                className="glass-card p-6"
+                                className="glass-card p-4 md:p-6"
                             >
                                 <div className="flex items-start justify-between mb-3">
                                     <div>
-                                        <h3 className="text-base font-semibold text-white">{credit.personName}</h3>
-                                        <p className="text-xs text-muted mt-0.5">
+                                        <h3 className="text-sm md:text-base font-semibold text-white">{credit.personName}</h3>
+                                        <p className="text-[10px] md:text-xs text-muted mt-0.5">
                                             {credit.linkedAccountId ? getAccountName(credit.linkedAccountId) : credit.subType === 'emi_loan' ? '🏦 EMI / Loan' : '—'}
                                         </p>
                                     </div>
@@ -175,9 +175,9 @@ export default function CreditsPage() {
                                 </div>
 
                                 <div className="mb-3">
-                                    <div className="flex justify-between text-sm mb-1">
+                                    <div className="flex justify-between items-center text-sm mb-1">
                                         <span className="text-slate-400">Remaining</span>
-                                        <span className={`font-semibold ${credit.type === 'given' ? 'text-amber-400' : 'text-rose-400'}`}>
+                                        <span className={`text-base md:text-lg font-bold ${credit.type === 'given' ? 'text-amber-400' : 'text-rose-400'}`}>
                                             {formatCurrency(credit.remainingAmount)}
                                         </span>
                                     </div>

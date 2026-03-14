@@ -118,7 +118,7 @@ export default function InsightsPage() {
 
     return (
         <div>
-            <motion.h1 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-2xl sm:text-3xl font-bold text-white mb-2">
+            <motion.h1 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-xl md:text-2xl lg:text-3xl font-bold text-white mb-2">
                 Smart Insights
             </motion.h1>
             <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="text-muted mb-8">
@@ -129,22 +129,22 @@ export default function InsightsPage() {
                 {cards.map((card, i) => {
                     const Icon = card.icon;
                     return (
-                        <motion.div
-                            key={card.label}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: i * 0.08 }}
-                            className={`glass-card p-6 ${card.bgClass}`}
-                        >
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className={`w-11 h-11 rounded-xl bg-white/5 flex items-center justify-center`}>
-                                    <Icon size={22} className={card.color} />
+                            <motion.div
+                                key={card.label}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.08 }}
+                                className={`glass-card p-4 md:p-6 ${card.bgClass}`}
+                            >
+                                <div className="flex items-center gap-3 mb-4">
+                                    <div className={`w-9 h-9 md:w-11 md:h-11 rounded-xl bg-white/5 flex items-center justify-center shrink-0`}>
+                                        <Icon className={`w-5 h-5 md:w-[22px] md:h-[22px] ${card.color}`} />
+                                    </div>
+                                    <p className="text-[10px] md:text-xs font-medium text-muted uppercase tracking-wider truncate">{card.label}</p>
                                 </div>
-                                <p className="text-xs font-medium text-muted uppercase tracking-wider">{card.label}</p>
-                            </div>
-                            <p className={`text-3xl font-bold mb-2 ${card.color}`}>{card.value}</p>
-                            {card.subtitle && <p className="text-sm text-slate-400">{card.subtitle}</p>}
-                        </motion.div>
+                                <p className={`text-2xl md:text-3xl font-bold mb-1 md:mb-2 truncate ${card.color}`}>{card.value}</p>
+                                {card.subtitle && <p className="text-xs md:text-sm text-slate-400">{card.subtitle}</p>}
+                            </motion.div>
                     );
                 })}
             </div>
@@ -154,10 +154,10 @@ export default function InsightsPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
-                className="glass-card p-5 mt-6"
+                className="glass-card p-4 md:p-6 mt-4 md:mt-6"
             >
-                <h3 className="text-sm font-semibold text-white mb-4">Total Overview ({rangeLabel})</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                <h3 className="text-sm md:text-base font-semibold text-white mb-4">Total Overview ({rangeLabel})</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
                     {[
                         { label: 'Income', value: formatCurrency(data.income), color: 'text-emerald-400' },
                         { label: 'Expenses', value: formatCurrency(data.expense), color: 'text-rose-400' },
@@ -166,8 +166,8 @@ export default function InsightsPage() {
                         { label: 'Liabilities', value: formatCurrency(data.totalLiabilities), color: 'text-rose-400' },
                     ].map((item) => (
                         <div key={item.label} className="text-center">
-                            <p className="text-xs text-muted mb-1">{item.label}</p>
-                            <p className={`text-lg font-bold ${item.color}`}>{item.value}</p>
+                            <p className="text-[10px] md:text-xs text-muted mb-1">{item.label}</p>
+                            <p className={`text-base md:text-lg font-bold truncate ${item.color}`}>{item.value}</p>
                         </div>
                     ))}
                 </div>

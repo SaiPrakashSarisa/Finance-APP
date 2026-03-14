@@ -97,11 +97,18 @@ body {
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
-  padding: 12px 16px;
+  padding: 10px 14px;
   color: #f8fafc;
-  font-size: 0.875rem;
+  font-size: 16px; /* 16px prevents iOS zoom on focus */
   transition: all 0.2s ease;
   width: 100%;
+}
+
+@media (min-width: 768px) {
+  .input-dark {
+    padding: 12px 16px;
+    font-size: 0.875rem;
+  }
 }
 
 .input-dark:hover {
@@ -132,7 +139,13 @@ select.input-dark {
 select.input-dark option {
   background-color: #1e293b;
   color: #f8fafc;
-  padding: 12px;
+  padding: 10px;
+}
+
+@media (min-width: 768px) {
+  select.input-dark option {
+    padding: 12px;
+  }
 }
 
 /* ── Buttons ── */
@@ -141,11 +154,17 @@ select.input-dark option {
   color: white;
   border: none;
   border-radius: 10px;
-  padding: 10px 20px;
+  padding: 8px 16px;
   font-weight: 600;
   font-size: 0.875rem;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+@media (min-width: 768px) {
+  .btn-primary {
+    padding: 10px 20px;
+  }
 }
 
 .btn-primary:hover {
@@ -158,11 +177,17 @@ select.input-dark option {
   color: #94a3b8;
   border: 1px solid #334155;
   border-radius: 10px;
-  padding: 10px 20px;
+  padding: 8px 16px;
   font-weight: 500;
   font-size: 0.875rem;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+@media (min-width: 768px) {
+  .btn-ghost {
+    padding: 10px 20px;
+  }
 }
 
 .btn-ghost:hover {
@@ -175,11 +200,17 @@ select.input-dark option {
   color: #f43f5e;
   border: 1px solid rgba(244, 63, 94, 0.3);
   border-radius: 10px;
-  padding: 10px 20px;
+  padding: 8px 16px;
   font-weight: 500;
   font-size: 0.875rem;
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+@media (min-width: 768px) {
+  .btn-danger {
+    padding: 10px 20px;
+  }
 }
 
 .btn-danger:hover {
@@ -194,14 +225,14 @@ select.input-dark option {
 }
 
 .content-inner {
-  padding: 24px 20px 32px;
+  padding: 16px 16px 24px;
   max-width: 1600px;
 }
 
-/* Tablet (sm) */
+/* Tablet (sm/md) */
 @media (min-width: 640px) {
   .content-inner {
-    padding: 28px 32px 32px;
+    padding: 24px 24px 32px;
   }
 }
 
@@ -214,14 +245,14 @@ select.input-dark option {
   }
 
   .content-inner {
-    padding: 40px 40px 40px;
+    padding: 32px 32px 40px;
   }
 }
 
 /* Large desktop (xl) */
 @media (min-width: 1280px) {
   .content-inner {
-    padding: 44px 48px 40px;
+    padding: 40px 48px 40px;
   }
 }
 

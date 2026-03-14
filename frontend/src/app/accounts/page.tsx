@@ -93,7 +93,7 @@ export default function AccountsPage() {
                 <motion.h1
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="text-2xl sm:text-3xl font-bold text-white"
+                    className="text-xl md:text-2xl lg:text-3xl font-bold text-white"
                 >
                     Accounts
                 </motion.h1>
@@ -111,20 +111,20 @@ export default function AccountsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
                     <AnimatePresence>
                         {accounts.map((acc, i) => (
-                            <motion.div
+                                <motion.div
                                 key={acc._id}
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
                                 transition={{ delay: i * 0.05 }}
-                                className="glass-card p-6"
+                                className="glass-card p-4 md:p-6"
                             >
                                 <div className="flex items-start justify-between mb-3">
                                     <div>
-                                        <h3 className="text-base font-semibold text-white">{acc.name}</h3>
+                                        <h3 className="text-sm md:text-base font-semibold text-white">{acc.name}</h3>
                                         <Badge label={ACCOUNT_TYPE_LABELS[acc.type] || acc.type} className={ACCOUNT_TYPE_COLORS[acc.type]} />
                                     </div>
-                                    <div className="flex gap-1">
+                                    <div className="flex gap-1 shrink-0">
                                         <button onClick={() => openEdit(acc)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
                                             <Pencil size={15} />
                                         </button>
@@ -133,10 +133,10 @@ export default function AccountsPage() {
                                         </button>
                                     </div>
                                 </div>
-                                <p className={`text-2xl font-bold ${acc.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                <p className={`text-xl md:text-2xl font-bold ${acc.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                     {formatCurrency(acc.balance, acc.currency)}
                                 </p>
-                                <p className="text-xs text-muted mt-1">{acc.currency}</p>
+                                <p className="text-[10px] md:text-xs text-muted mt-1">{acc.currency}</p>
                             </motion.div>
                         ))}
                     </AnimatePresence>

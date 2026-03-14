@@ -26,15 +26,15 @@ export default function SummaryCard({ label, value, icon: Icon, color, delay = 0
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay }}
-            className={`glass-card p-6 ${c.gradient}`}
+            className={`glass-card p-4 sm:p-5 md:p-6 ${c.gradient}`}
         >
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-xs font-medium text-muted uppercase tracking-wider mb-1">{label}</p>
-                    <p className={`text-xl sm:text-2xl font-bold ${c.text}`}>{value}</p>
+            <div className="flex items-center justify-between gap-3">
+                <div className="truncate">
+                    <p className="text-[10px] sm:text-xs font-medium text-muted uppercase tracking-wider mb-1 truncate">{label}</p>
+                    <p className={`text-lg sm:text-xl md:text-2xl font-bold ${c.text} truncate`}>{value}</p>
                 </div>
-                <div className={`w-11 h-11 rounded-xl ${c.iconBg} flex items-center justify-center`}>
-                    <Icon size={22} className={c.text} />
+                <div className={`w-9 h-9 sm:w-11 sm:h-11 rounded-xl ${c.iconBg} flex items-center justify-center shrink-0`}>
+                    <Icon className={`w-[18px] h-[18px] sm:w-[22px] sm:h-[22px] ${c.text}`} />
                 </div>
             </div>
         </motion.div>

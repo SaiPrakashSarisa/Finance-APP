@@ -103,11 +103,11 @@ export default function CategoriesPage() {
                     <motion.h1
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-3"
+                        className="text-xl md:text-2xl lg:text-3xl font-bold text-white flex items-center gap-2 md:gap-3"
                     >
-                        <Tag className="text-violet-400" /> Categories
+                        <Tag className="text-violet-400 w-6 h-6 md:w-8 md:h-8" /> Categories
                     </motion.h1>
-                    <p className="text-muted mt-1">Manage your transaction categories for better tracking.</p>
+                    <p className="text-xs md:text-sm text-muted mt-1">Manage your transaction categories for better tracking.</p>
                 </div>
                 <button onClick={openCreate} className="btn-primary flex items-center gap-2 self-start sm:self-auto">
                     <Plus size={18} /> Add Category
@@ -126,26 +126,26 @@ export default function CategoriesPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <AnimatePresence mode="popLayout">
                                 {groupedCategories[type as keyof typeof groupedCategories].map((cat, i) => (
-                                    <motion.div
-                                        key={cat._id}
-                                        initial={{ opacity: 0, scale: 0.95 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        exit={{ opacity: 0, scale: 0.95 }}
-                                        transition={{ delay: i * 0.03 }}
-                                        className="glass-card p-4 flex items-center justify-between group"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div
-                                                className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
-                                                style={{ backgroundColor: `${cat.color}20`, color: cat.color }}
-                                            >
-                                                <Tag size={20} />
+                                        <motion.div
+                                            key={cat._id}
+                                            initial={{ opacity: 0, scale: 0.95 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.95 }}
+                                            transition={{ delay: i * 0.03 }}
+                                            className="glass-card p-3 md:p-4 flex items-center justify-between group"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div
+                                                    className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center shrink-0"
+                                                    style={{ backgroundColor: `${cat.color}20`, color: cat.color }}
+                                                >
+                                                    <Tag className="w-4 h-4 md:w-5 md:h-5" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-sm md:text-base font-medium text-white">{cat.name}</h3>
+                                                    <p className="text-[10px] md:text-xs text-muted uppercase tracking-wider">{cat.type}</p>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <h3 className="font-medium text-white">{cat.name}</h3>
-                                                <p className="text-xs text-muted uppercase tracking-wider">{cat.type}</p>
-                                            </div>
-                                        </div>
                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button
                                                 onClick={() => openEdit(cat)}

@@ -180,40 +180,40 @@ export default function ProfilePage() {
 
     return (
         <div className="max-w-4xl mx-auto pb-20">
-            <header className="mb-8">
+            <header className="mb-6 md:mb-8">
                 <motion.h1
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-3"
+                    className="text-xl md:text-2xl lg:text-3xl font-bold text-white flex items-center gap-2 md:gap-3"
                 >
-                    <User className="text-violet-400" /> Profile Settings
+                    <User className="text-violet-400 w-6 h-6 md:w-8 md:h-8" /> Profile Settings
                 </motion.h1>
-                <p className="text-muted mt-1">Manage your personal information and application security.</p>
+                <p className="text-xs md:text-sm text-muted mt-1">Manage your personal information and application security.</p>
             </header>
 
-            <div className="space-y-8">
+            <div className="space-y-6 md:space-y-8">
                 {/* Personal Information */}
                 <motion.section 
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="glass-card p-6 border border-white/10 relative overflow-hidden"
+                    className="glass-card p-4 md:p-6 border border-white/10 relative overflow-hidden"
                 >
                     <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/10 blur-[100px] rounded-full pointer-events-none" />
                     
-                    <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
-                        <User size={20} className="text-violet-400" />
+                    <h2 className="text-base md:text-lg font-semibold text-white mb-4 md:mb-6 flex items-center gap-2">
+                        <User className="text-violet-400 w-5 h-5 md:w-[20px] md:h-[20px]" />
                         Personal Information
                     </h2>
 
-                    <form onSubmit={handleSaveProfile} className="relative z-10 flex flex-col md:flex-row gap-8">
+                    <form onSubmit={handleSaveProfile} className="relative z-10 flex flex-col md:flex-row gap-6 md:gap-8">
                         {/* Avatar Column */}
-                        <div className="flex flex-col items-center gap-4 shrink-0">
+                        <div className="flex flex-col items-center gap-3 md:gap-4 shrink-0">
                             <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                                <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-white/10 bg-slate-800 relative shadow-xl shadow-black/20 group-hover:border-violet-500/50 transition-colors">
+                                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden border-2 border-white/10 bg-slate-800 relative shadow-xl shadow-black/20 group-hover:border-violet-500/50 transition-colors">
                                     {profilePicture ? (
                                         <img src={profilePicture} alt="Profile" className="w-full h-full object-cover" />
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-4xl font-bold text-slate-600">
+                                        <div className="w-full h-full flex items-center justify-center text-3xl sm:text-4xl font-bold text-slate-600">
                                             {name ? name.charAt(0).toUpperCase() : 'U'}
                                         </div>
                                     )}
@@ -253,36 +253,36 @@ export default function ProfilePage() {
                             </AnimatePresence>
 
                             <div className="space-y-1.5 flex-1">
-                                <label className="text-xs font-semibold text-slate-400 ml-1 uppercase tracking-wider">Full Name</label>
+                                <label className="text-[10px] md:text-xs font-semibold text-slate-400 ml-1 uppercase tracking-wider">Full Name</label>
                                 <div className="relative group">
-                                    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-violet-400 transition-colors">
+                                    <div className="absolute inset-y-0 left-3 md:left-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-violet-400 transition-colors">
                                         <User size={18} />
                                     </div>
                                     <input 
                                         type="text" required value={name} onChange={(e) => setName(e.target.value)}
-                                        className="w-full bg-slate-900 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all"
+                                        className="w-full bg-slate-900 border border-white/10 rounded-xl py-2.5 md:py-3 pl-10 md:pl-12 pr-4 text-sm md:text-base text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all font-sans"
                                     />
                                 </div>
                             </div>
 
                             <div className="space-y-1.5 flex-1 opacity-70 cursor-not-allowed">
-                                <label className="text-xs font-semibold text-slate-400 ml-1 uppercase tracking-wider">Email Address</label>
+                                <label className="text-[10px] md:text-xs font-semibold text-slate-400 ml-1 uppercase tracking-wider">Email Address</label>
                                 <div className="relative group">
-                                    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-500">
+                                    <div className="absolute inset-y-0 left-3 md:left-4 flex items-center pointer-events-none text-slate-500">
                                         <Mail size={18} />
                                     </div>
                                     <input 
                                         type="email" disabled value={email}
-                                        className="w-full bg-slate-900/50 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-slate-400 cursor-not-allowed"
+                                        className="w-full bg-slate-900/50 border border-white/10 rounded-xl py-2.5 md:py-3 pl-10 md:pl-12 pr-4 text-sm md:text-base text-slate-400 cursor-not-allowed"
                                     />
                                 </div>
-                                <p className="text-[10px] text-muted ml-1">Email address cannot be changed</p>
+                                <p className="text-[10px] text-muted ml-1 leading-none">Email address cannot be changed</p>
                             </div>
 
                             <div className="space-y-1.5 flex-1">
-                                <label className="text-xs font-semibold text-slate-400 ml-1 uppercase tracking-wider">Phone Number</label>
-                                <div className="flex gap-3 relative group">
-                                    <div className="w-36 overflow-visible shrink-0 z-20" >
+                                <label className="text-[10px] md:text-xs font-semibold text-slate-400 ml-1 uppercase tracking-wider">Phone Number</label>
+                                <div className="flex flex-col sm:flex-row gap-3 relative group">
+                                    <div className="w-full sm:w-36 overflow-visible shrink-0 z-20" >
                                         <Select 
                                             options={COUNTRY_CODES}
                                             value={countryCode}
@@ -290,12 +290,12 @@ export default function ProfilePage() {
                                         />
                                     </div>
                                     <div className="relative flex-1 group">
-                                        <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-violet-400 transition-colors">
+                                        <div className="absolute inset-y-0 left-3 md:left-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-violet-400 transition-colors">
                                             <Phone size={18} />
                                         </div>
                                         <input 
                                             type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-                                            className="w-full bg-slate-900 border border-white/10 rounded-xl py-[11px] pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all font-sans"
+                                            className="w-full bg-slate-900 border border-white/10 rounded-xl py-[9px] md:py-[11px] pl-10 md:pl-12 pr-4 text-sm md:text-base text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition-all font-sans"
                                             placeholder="555-0123"
                                         />
                                     </div>
@@ -305,7 +305,7 @@ export default function ProfilePage() {
                             <div className="flex justify-end pt-2">
                                 <button
                                     type="submit" disabled={savingProfile}
-                                    className="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-medium rounded-xl shadow-lg shadow-violet-600/20 transition-all active:scale-[0.98] flex items-center gap-2"
+                                    className="px-4 py-2 sm:px-6 sm:py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm md:text-base font-medium rounded-xl shadow-lg shadow-violet-600/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 w-full md:w-auto"
                                 >
                                     {savingProfile ? (
                                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -324,14 +324,14 @@ export default function ProfilePage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 }}
-                    className="glass-card p-6 border border-white/10"
+                    className="glass-card p-4 md:p-6 border border-white/10"
                 >
-                    <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
-                        <Shield size={20} className="text-indigo-400" />
+                    <h2 className="text-base md:text-lg font-semibold text-white mb-4 md:mb-6 flex items-center gap-2">
+                        <Shield className="text-indigo-400 w-5 h-5 md:w-[20px] md:h-[20px]" />
                         Password & Security
                     </h2>
 
-                    <form onSubmit={handleUpdatePassword} className="space-y-5 max-w-xl">
+                    <form onSubmit={handleUpdatePassword} className="space-y-4 md:space-y-5 max-w-xl">
                         {/* Feedback Messages */}
                         <AnimatePresence>
                             {passwordError && (
@@ -347,42 +347,42 @@ export default function ProfilePage() {
                         </AnimatePresence>
 
                         <div className="space-y-1.5 flex-1">
-                            <label className="text-xs font-semibold text-slate-400 ml-1 uppercase tracking-wider">Current Password</label>
+                            <label className="text-[10px] md:text-xs font-semibold text-slate-400 ml-1 uppercase tracking-wider">Current Password</label>
                             <div className="relative group">
-                                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-indigo-400 transition-colors">
+                                <div className="absolute inset-y-0 left-3 md:left-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-indigo-400 transition-colors">
                                     <Lock size={18} />
                                 </div>
                                 <input 
                                     type="password" required value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
-                                    className="w-full bg-slate-900 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all font-sans"
+                                    className="w-full bg-slate-900 border border-white/10 rounded-xl py-2.5 md:py-3 pl-10 md:pl-12 pr-4 text-sm md:text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all font-sans"
                                     placeholder="••••••••"
                                 />
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
                             <div className="space-y-1.5 flex-1">
-                                <label className="text-xs font-semibold text-slate-400 ml-1 uppercase tracking-wider">New Password</label>
+                                <label className="text-[10px] md:text-xs font-semibold text-slate-400 ml-1 uppercase tracking-wider">New Password</label>
                                 <div className="relative group">
-                                    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-indigo-400 transition-colors">
+                                    <div className="absolute inset-y-0 left-3 md:left-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-indigo-400 transition-colors">
                                         <Lock size={18} />
                                     </div>
                                     <input 
                                         type="password" required value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                                        className="w-full bg-slate-900 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all font-sans"
+                                        className="w-full bg-slate-900 border border-white/10 rounded-xl py-2.5 md:py-3 pl-10 md:pl-12 pr-4 text-sm md:text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all font-sans"
                                         placeholder="••••••••"
                                     />
                                 </div>
                             </div>
                             <div className="space-y-1.5 flex-1">
-                                <label className="text-xs font-semibold text-slate-400 ml-1 uppercase tracking-wider">Confirm New</label>
+                                <label className="text-[10px] md:text-xs font-semibold text-slate-400 ml-1 uppercase tracking-wider">Confirm New</label>
                                 <div className="relative group">
-                                    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-indigo-400 transition-colors">
+                                    <div className="absolute inset-y-0 left-3 md:left-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-indigo-400 transition-colors">
                                         <Lock size={18} />
                                     </div>
                                     <input 
                                         type="password" required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                                        className="w-full bg-slate-900 border border-white/10 rounded-xl py-3 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all font-sans"
+                                        className="w-full bg-slate-900 border border-white/10 rounded-xl py-2.5 md:py-3 pl-10 md:pl-12 pr-4 text-sm md:text-base text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all font-sans"
                                         placeholder="••••••••"
                                     />
                                 </div>
@@ -392,7 +392,7 @@ export default function ProfilePage() {
                         <div className="flex justify-start pt-2">
                             <button
                                 type="submit" disabled={savingPassword}
-                                className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white font-medium rounded-xl border border-white/10 transition-all active:scale-[0.98] flex items-center gap-2"
+                                className="px-4 py-2 sm:px-6 sm:py-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white text-sm md:text-base font-medium rounded-xl border border-white/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2 w-full md:w-auto"
                             >
                                 {savingPassword ? (
                                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

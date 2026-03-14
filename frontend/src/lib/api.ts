@@ -81,7 +81,14 @@ export const getCategoryBreakdown = (month?: number, year?: number) => {
 export const getMonthlyTrend = () => request<any>('/analytics/monthly-trend');
 export const getInsights = () => request<any>('/analytics/insights');
 
-// ── User Settings ──
+// ── User Settings & Profile ──
 export const getUserSettings = () => request<any>('/user/settings');
 export const updateUserSettings = (data: any) =>
   request<any>('/user/settings', { method: 'PATCH', body: JSON.stringify(data) });
+
+export const getUserProfile = () => request<any>('/user/profile');
+export const updateUserProfile = (data: any) =>
+  request<any>('/user/profile', { method: 'PUT', body: JSON.stringify(data) });
+export const changePassword = (data: any) =>
+  request<any>('/user/change-password', { method: 'PUT', body: JSON.stringify(data) });
+
