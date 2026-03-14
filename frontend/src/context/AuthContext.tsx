@@ -8,6 +8,7 @@ interface AuthContextType {
   user: any;
   loading: boolean;
   login: (userData: any) => void;
+  updateUser: (userData: any) => void;
   logout: () => Promise<void>;
 }
 
@@ -44,6 +45,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push('/');
   };
 
+  const updateUser = (userData: any) => {
+    setUser(userData);
+  };
+
   const logoutUser = async () => {
     try {
       await apiLogout();
@@ -55,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login: loginUser, logout: logoutUser }}>
+    <AuthContext.Provider value={{ user, loading, login: loginUser, updateUser, logout: logoutUser }}>
       {children}
     </AuthContext.Provider>
   );

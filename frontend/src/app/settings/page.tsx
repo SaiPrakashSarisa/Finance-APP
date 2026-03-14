@@ -151,20 +151,6 @@ export default function SettingsHubPage() {
                         Personalization
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="glass-card p-5 group flex items-start gap-4 transition-all opacity-60 cursor-not-allowed">
-                            <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-emerald-400/10 text-emerald-400">
-                                <User size={24} />
-                            </div>
-                            <div className="flex-1">
-                                <h3 className="font-semibold text-white">Profile Settings</h3>
-                                <p className="text-sm text-muted mt-1 leading-relaxed">
-                                    Update your personal info and preferences
-                                </p>
-                                <span className="inline-block mt-2 text-[10px] uppercase font-bold tracking-widest text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">
-                                    Coming Soon
-                                </span>
-                            </div>
-                        </div>
 
                         <div className="glass-card p-5 group flex items-start gap-4 transition-all opacity-60 cursor-not-allowed">
                             <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 bg-amber-400/10 text-amber-400">

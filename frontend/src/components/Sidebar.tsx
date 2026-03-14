@@ -15,6 +15,7 @@ import {
     DollarSign,
     Settings,
     LogOut,
+    UserCircle,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -30,7 +31,13 @@ const navItems = [
 export default function Sidebar() {
     const pathname = usePathname();
     const [mobileOpen, setMobileOpen] = useState(false);
-    const { logout } = useAuth();
+    const { user, logout } = useAuth();
+
+    // Helper to get initials from name
+    const getInitials = (name: string) => {
+        if (!name) return 'U';
+        return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    };
 
     const navContent = (
         <nav className="flex flex-col gap-3 mt-10 px-1">
@@ -79,7 +86,27 @@ export default function Sidebar() {
                 <div className="flex-1 overflow-y-auto">
                     {navContent}
                 </div>
-                <div className="mt-auto pt-4 border-t border-border/50">
+
+                {/* User Profile Section (Desktop) */}
+                <div className="mt-auto pt-4 border-t border-border/50 space-y-2">
+                    {user && (
+                        <Link
+                            href="/profile"
+                            className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-all text-left"
+                        >
+                            {user.profilePicture ? (
+                                <img src={user.profilePicture} alt="Profile" className="w-10 h-10 rounded-full object-cover border border-white/10 shrink-0" />
+                            ) : (
+                                <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center border border-white/10 shrink-0 text-slate-300 font-medium text-sm tracking-wide">
+                                    {getInitials(user.name)}
+                                </div>
+                            )}
+                            <div className="overflow-hidden">
+                                <p className="text-sm font-medium text-white truncate">{user.name}</p>
+                                <p className="text-xs text-muted truncate">View Profile</p>
+                            </div>
+                        </Link>
+                    )}
                     <button
                         onClick={logout}
                         className="flex items-center gap-3 px-5 py-3.5 text-rose-400 font-medium hover:bg-rose-500/10 rounded-xl transition-all w-full text-sm"
@@ -139,7 +166,28 @@ export default function Sidebar() {
                                 </button>
                             </div>
                             {navContent}
-                            <div className="mt-8 pt-4 border-t border-border/50">
+
+                            {/* User Profile Section (Mobile) */}
+                            <div className="mt-8 pt-4 border-t border-border/50 space-y-2">
+                                {user && (
+                                    <Link
+                                        href="/profile"
+                                        onClick={() => setMobileOpen(false)}
+                                        className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white/5 transition-all text-left"
+                                    >
+                                        {user.profilePicture ? (
+                                            <img src={user.profilePicture} alt="Profile" className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0" />
+                                        ) : (
+                                            <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-white/10 shrink-0 text-slate-300 font-medium text-sm tracking-wide">
+                                                {getInitials(user.name)}
+                                            </div>
+                                        )}
+                                        <div className="overflow-hidden">
+                                            <p className="text-sm font-medium text-white truncate">{user.name}</p>
+                                            <p className="text-xs text-muted truncate">View Profile</p>
+                                        </div>
+                                    </Link>
+                                )}
                                 <button
                                     onClick={logout}
                                     className="flex items-center gap-3 px-5 py-3.5 text-rose-400 font-medium hover:bg-rose-500/10 rounded-xl transition-all w-full text-sm"
