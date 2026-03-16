@@ -22,18 +22,15 @@ const budgetSchema = new mongoose.Schema({
         enum: ['monthly'],
         default: 'monthly'
     },
-    yearMonth: {
-        type: String, // e.g., '2023-10' or 'default'
+    // The YYYY-MM starting from which this budget amount is effective
+    validFrom: {
+        type: String,
         required: true,
-        default: 'default'
-    },
-    createdAt: {
-        type: Date,
-        default: Date.now
+        match: /^\d{4}-\d{2}$/ // Enforces YYYY-MM format
     }
-});
+}, { timestamps: true });
 
-// Ensure a user can only have one budget per category per yearMonth
-budgetSchema.index({ userId: 1, categoryId: 1, yearMonth: 1 }, { unique: true });
+// Ensure a user can only have one budget per category per "validFrom" snapshot month
+budgetSchema.index({ userId: 1, categoryId: 1, validFrom: 1 }, { unique: true });
 
 module.exports = mongoose.model('Budget', budgetSchema);

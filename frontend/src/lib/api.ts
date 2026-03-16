@@ -105,3 +105,16 @@ export const getBudgetProgress = (month?: number, year?: number) => {
   const query = params.toString() ? `?${params}` : '';
   return request<any>(`/budgets/progress${query}`);
 };
+
+export const getBudgetAnalytics = (
+  fromMonth?: number, fromYear?: number,
+  toMonth?: number, toYear?: number
+) => {
+  const params = new URLSearchParams();
+  if (fromMonth) params.set('fromMonth', String(fromMonth));
+  if (fromYear) params.set('fromYear', String(fromYear));
+  if (toMonth) params.set('toMonth', String(toMonth));
+  if (toYear) params.set('toYear', String(toYear));
+  const query = params.toString() ? `?${params}` : '';
+  return request<any>(`/budgets/analytics${query}`);
+};

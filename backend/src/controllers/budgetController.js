@@ -50,6 +50,22 @@ const budgetController = {
         } catch (error) {
             res.status(500).json({ success: false, error: error.message });
         }
+    },
+
+    // Get trailing budget performance analytics
+    async getAnalytics(req, res) {
+        try {
+            const now = new Date();
+            const fromMonth = parseInt(req.query.fromMonth) || now.getMonth() + 1;
+            const fromYear = parseInt(req.query.fromYear) || now.getFullYear() - 1; // Default to trailing 12 months roughly
+            const toMonth = parseInt(req.query.toMonth) || now.getMonth() + 1;
+            const toYear = parseInt(req.query.toYear) || now.getFullYear();
+
+            const analytics = await budgetService.getAnalytics(req.userId, fromMonth, fromYear, toMonth, toYear);
+            res.json({ success: true, data: analytics });
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
     }
 };
 

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { getInsights, getUserSettings, getBudgetProgress } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
+import BudgetAnalyticsWidget from '@/components/BudgetAnalyticsWidget';
 
 interface InsightCard {
     label: string;
@@ -174,6 +175,15 @@ export default function InsightsPage() {
                         </div>
                     ))}
                 </div>
+            </motion.div>
+
+            {/* Custom Range Monthly Budget Trends */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.55 }}
+            >
+                <BudgetAnalyticsWidget />
             </motion.div>
 
             {/* Budget Alerts Section */}
