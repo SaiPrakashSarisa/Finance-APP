@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
     PiggyBank, TrendingDown, Flame, Award,
-    ShieldAlert, HeartPulse,
+    ShieldAlert, HeartPulse, Target, AlertTriangle
 } from 'lucide-react';
-import { getInsights, getUserSettings } from '@/lib/api';
+import { getInsights, getUserSettings, getBudgetProgress } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
 interface InsightCard {
@@ -29,17 +29,20 @@ const RANGE_LABELS: Record<string, string> = {
 export default function InsightsPage() {
     const [data, setData] = useState<any>(null);
     const [settings, setSettings] = useState<any>(null);
+    const [budgets, setBudgets] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         async function load() {
             try {
-                const [insRes, setRes] = await Promise.all([
+                const [insRes, setRes, budgRes] = await Promise.all([
                     getInsights(),
-                    getUserSettings()
+                    getUserSettings(),
+                    getBudgetProgress() // Insights budget analysis is always current month
                 ]);
                 setData(insRes.data);
                 setSettings(setRes.data);
+                setBudgets(budgRes.data || []);
             } catch (err) { console.error(err); }
             finally { setLoading(false); }
         }
@@ -172,6 +175,69 @@ export default function InsightsPage() {
                     ))}
                 </div>
             </motion.div>
+
+            {/* Budget Alerts Section */}
+            {budgets.length > 0 && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                    className="mt-6 md:mt-8"
+                >
+                    <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                        <Target className="text-emerald-400 w-6 h-6" /> Budget Health Focus
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {budgets.filter(b => b.percentageUsed >= 80).length === 0 ? (
+                            <div className="col-span-full glass-card p-6 text-center border-emerald-500/20">
+                                <ShieldAlert size={32} className="mx-auto mb-3 text-emerald-400 opacity-80" />
+                                <p className="text-white font-semibold">All Budgets Healthy</p>
+                                <p className="text-sm text-muted">You are well within your limits for all budgeted categories this month.</p>
+                            </div>
+                        ) : (
+                            budgets.filter(b => b.percentageUsed >= 50).sort((a, b) => b.percentageUsed - a.percentageUsed).map((budget, i) => {
+                                const isOver = budget.exceeded;
+                                const isWarning = budget.percentageUsed >= 80 && !isOver;
+                                let color = isOver ? 'text-rose-400' : isWarning ? 'text-amber-400' : 'text-emerald-400';
+                                let bgIcon = isOver ? 'bg-rose-500/10' : isWarning ? 'bg-amber-500/10' : 'bg-emerald-500/10';
+
+                                return (
+                                    <div key={budget.budgetId} className={`glass-card p-5 border-l-4 ${isOver ? 'border-rose-400' : isWarning ? 'border-amber-400' : 'border-emerald-400'}`}>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-8 h-8 rounded shrink-0 flex items-center justify-center text-lg ${bgIcon}`}>
+                                                    {budget.category?.icon || '📦'}
+                                                </div>
+                                                <h4 className="font-semibold text-white">{budget.category?.name}</h4>
+                                            </div>
+                                            {isOver && <AlertTriangle size={18} className="text-rose-400" />}
+                                        </div>
+                                        <div className="mt-3">
+                                            <div className="flex justify-between text-sm mb-1">
+                                                <span className="text-slate-300">{formatCurrency(budget.spent)} / {formatCurrency(budget.amount)}</span>
+                                                <span className={`font-bold ${color}`}>{budget.percentageUsed}%</span>
+                                            </div>
+                                            <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full ${isOver ? 'bg-rose-400' : isWarning ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                                                    style={{ width: `${Math.min(budget.percentageUsed, 100)}%` }}
+                                                />
+                                            </div>
+                                            <p className="text-xs text-muted mt-2">
+                                                {isOver
+                                                    ? `Action Required: You are over budget by ${formatCurrency(Math.abs(budget.remaining))}.`
+                                                    : isWarning
+                                                        ? `Caution: Only ${formatCurrency(budget.remaining)} remaining this month.`
+                                                        : `On track! ${formatCurrency(budget.remaining)} left to spend.`}
+                                            </p>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </motion.div>
+            )}
         </div>
     );
 }

@@ -9,6 +9,7 @@ const categoryRoutes = require('./src/routes/categoryRoutes');
 const creditRoutes = require('./src/routes/creditRoutes');
 const analyticsRoutes = require('./src/routes/analyticsRoutes');
 const userRoutes = require('./src/routes/userRoutes');
+const budgetRoutes = require('./src/routes/budgetRoutes');
 
 const cookieParser = require('cookie-parser');
 const authRoutes = require('./src/routes/authRoutes');
@@ -38,6 +39,7 @@ app.use('/api/categories', protect, categoryRoutes);
 app.use('/api/credits', protect, creditRoutes);
 app.use('/api/analytics', protect, analyticsRoutes);
 app.use('/api/user', protect, userRoutes);
+app.use('/api/budgets', protect, budgetRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

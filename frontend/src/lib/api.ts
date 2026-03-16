@@ -1,5 +1,5 @@
-// const API_BASE = "http://localhost:5000/api";
-const API_BASE = "https://finance-app-axlj.onrender.com/api";
+const API_BASE = "http://localhost:5000/api";
+// const API_BASE = "https://finance-app-axlj.onrender.com/api";
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -92,3 +92,16 @@ export const updateUserProfile = (data: any) =>
 export const changePassword = (data: any) =>
   request<any>('/user/change-password', { method: 'PUT', body: JSON.stringify(data) });
 
+// ── Budgets ──
+export const getBudgets = () => request<any>('/budgets');
+export const upsertBudget = (data: any) =>
+  request<any>('/budgets/upsert', { method: 'POST', body: JSON.stringify(data) });
+export const deleteBudget = (id: string) =>
+  request<any>(`/budgets/${id}`, { method: 'DELETE' });
+export const getBudgetProgress = (month?: number, year?: number) => {
+  const params = new URLSearchParams();
+  if (month) params.set('month', String(month));
+  if (year) params.set('year', String(year));
+  const query = params.toString() ? `?${params}` : '';
+  return request<any>(`/budgets/progress${query}`);
+};

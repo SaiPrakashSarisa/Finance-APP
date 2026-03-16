@@ -11,7 +11,8 @@ import {
   ArrowDownLeft, Landmark,
 } from 'lucide-react';
 import SummaryCard from '@/components/SummaryCard';
-import { getDashboard, getCategoryBreakdown, getMonthlyTrend, getUserSettings } from '@/lib/api';
+import BudgetProgressWidget from '@/components/BudgetProgressWidget';
+import { getDashboard, getCategoryBreakdown, getMonthlyTrend, getUserSettings, getBudgetProgress } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
 const PIE_COLORS = ['#f43f5e', '#8b5cf6', '#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#14b8a6', '#f97316'];
@@ -21,21 +22,24 @@ export default function DashboardPage() {
   const [dashboard, setDashboard] = useState<any>(null);
   const [categories, setCategories] = useState<any[]>([]);
   const [trend, setTrend] = useState<any[]>([]);
+  const [budgets, setBudgets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState('1m');
 
   useEffect(() => {
     async function load() {
       try {
-        const [settingsRes, d, c, t] = await Promise.all([
+        const [settingsRes, d, c, t, b] = await Promise.all([
           getUserSettings(),
           getDashboard(),
           getCategoryBreakdown(),
           getMonthlyTrend(),
+          getBudgetProgress() // Always fetch current month budget progress
         ]);
         setRange(settingsRes.data.dashboardRange || '1m');
         setDashboard(d.data);
         setCategories(c.data);
+        setBudgets(b.data || []);
 
         // Transform trend data for Recharts
         const trendMap: Record<string, any> = {};
@@ -131,9 +135,10 @@ export default function DashboardPage() {
         <SummaryCard label="Net Worth" value={formatCurrency(dashboard.netWorth)} icon={Landmark} color="blue" delay={0.25} />
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-8">
-        {/* Expense Category Pie */}
+      {/* Charts & Widgets */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-8">
+        
+        {/* Expense Category Pie - Takes 1 column on LG */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -168,12 +173,12 @@ export default function DashboardPage() {
           )}
         </motion.div>
 
-        {/* Monthly Trend Bar */}
+        {/* Monthly Trend Bar - Takes 2 columns on LG */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35 }}
-          className="glass-card p-4 md:p-6"
+          className="glass-card p-4 md:p-6 lg:col-span-2"
         >
           <h3 className="text-sm md:text-base font-semibold text-white mb-3 md:mb-4">Income vs Expenses (Trends)</h3>
           {trend.length === 0 ? (
@@ -193,11 +198,21 @@ export default function DashboardPage() {
           )}
         </motion.div>
 
-        {/* Account Balance Donut */}
+        {/* Budget Progress Widget - Takes 1 column on LG */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
+          className="lg:col-span-1"
+        >
+          <BudgetProgressWidget budgets={budgets} />
+        </motion.div>
+
+        {/* Account Balance Donut - Takes 2 columns on LG */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
           className="glass-card p-4 md:p-6 lg:col-span-2"
         >
           <h3 className="text-sm md:text-base font-semibold text-white mb-3 md:mb-4">Account Balances</h3>

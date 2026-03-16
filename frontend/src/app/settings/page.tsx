@@ -128,6 +128,26 @@ export default function SettingsHubPage() {
                             </div>
                         </Link>
 
+                        <Link
+                            href="/settings/budgets"
+                            className="glass-card p-4 md:p-5 group flex items-start gap-3 md:gap-4 transition-all hover:border-violet-500/30 hover:bg-white/[0.04]"
+                        >
+                            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shrink-0 bg-emerald-400/10 text-emerald-400">
+                                <LayoutDashboard className="w-5 h-5 md:w-6 md:h-6" />
+                            </div>
+                            <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-sm md:text-base font-semibold text-white group-hover:text-emerald-400 transition-colors">
+                                        Budgets
+                                    </h3>
+                                    <ChevronRight size={18} className="text-slate-600 group-hover:text-emerald-400 transform group-hover:translate-x-1 transition-all" />
+                                </div>
+                                <p className="text-xs md:text-sm text-muted mt-0.5 md:mt-1 leading-relaxed">
+                                    Set monthly spending limits for categories
+                                </p>
+                            </div>
+                        </Link>
+
                         <div className="glass-card p-4 md:p-5 group flex items-start gap-3 md:gap-4 transition-all opacity-60 cursor-not-allowed">
                             <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shrink-0 bg-blue-400/10 text-blue-400">
                                 <Palette className="w-5 h-5 md:w-6 md:h-6" />
