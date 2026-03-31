@@ -58,9 +58,11 @@ const transactionSchema = new mongoose.Schema({
     }
 });
 
+transactionSchema.index({ userId: 1, date: -1 });
 transactionSchema.index({ userId: 1, accountId: 1, date: -1 });
 transactionSchema.index({ userId: 1, type: 1, date: -1 });
 transactionSchema.index({ userId: 1, creditId: 1 });
+transactionSchema.index({ accountId: 1 });
 
 // Validate toAccountId for transfers
 transactionSchema.pre('validate', function (next) {

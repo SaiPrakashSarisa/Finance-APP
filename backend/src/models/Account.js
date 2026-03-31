@@ -41,7 +41,8 @@ const accountSchema = new mongoose.Schema({
     }
 });
 
-accountSchema.index({ userId: 1 });
+accountSchema.index({ userId: 1, isActive: 1 });
+accountSchema.index({ userId: 1, type: 1 });
 
 // Prevent negative balance for non-credit-card accounts
 accountSchema.pre('save', function (next) {

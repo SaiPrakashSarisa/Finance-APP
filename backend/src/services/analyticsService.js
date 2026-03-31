@@ -3,6 +3,7 @@ const Transaction = require('../models/Transaction');
 const Account = require('../models/Account');
 const creditService = require('./creditService');
 const User = require('../models/User');
+const cache = require('../utils/cache');
 
 const analyticsService = {
     // Helper to get date range based on month/year OR user settings
@@ -41,6 +42,10 @@ const analyticsService = {
 
     // Dashboard summary for a given range
     async getDashboard(userId, month, year) {
+        const cacheKey = `${userId}:dashboard:${month || 'default'}:${year || 'default'}`;
+        const cached = cache.get(cacheKey);
+        if (cached) return cached;
+
         const { startDate, endDate } = await this._getDateRange(userId, month, year);
 
         const [totals, accounts, creditTotals] = await Promise.all([
@@ -71,7 +76,7 @@ const analyticsService = {
         const totalBalance = accounts.reduce((sum, acc) => sum + acc.balance, 0);
         const netWorth = totalBalance + creditTotals.totalReceivables - creditTotals.totalLiabilities;
 
-        return {
+        const result = {
             income,
             expense,
             netSavings: income - expense,
@@ -80,13 +85,21 @@ const analyticsService = {
             netWorth,
             accounts: accounts.map(a => ({ name: a.name, type: a.type, balance: a.balance }))
         };
+
+        // Cache for 10 minutes
+        cache.set(cacheKey, result, 600);
+        return result;
     },
 
     // Expense breakdown by category
     async getCategoryBreakdown(userId, month, year) {
+        const cacheKey = `${userId}:categories:${month || 'default'}:${year || 'default'}`;
+        const cached = cache.get(cacheKey);
+        if (cached) return cached;
+
         const { startDate, endDate } = await this._getDateRange(userId, month, year);
 
-        return Transaction.aggregate([
+        const result = await Transaction.aggregate([
             {
                 $match: {
                     userId: new mongoose.Types.ObjectId(userId),
@@ -115,6 +128,9 @@ const analyticsService = {
             },
             { $sort: { total: -1 } }
         ]);
+
+        cache.set(cacheKey, result, 600);
+        return result;
     },
 
     // Monthly trend (last 6 months)
@@ -148,6 +164,10 @@ const analyticsService = {
 
     // Smart insights
     async getInsights(userId, month, year) {
+        const cacheKey = `${userId}:insights:${month || 'default'}:${year || 'default'}`;
+        const cached = cache.get(cacheKey);
+        if (cached) return cached;
+
         const { startDate, endDate } = await this._getDateRange(userId, month, year);
         const dayOfMonth = (new Date()).getDate(); // Keep for daily avg calculation
 
@@ -224,7 +244,7 @@ const analyticsService = {
             { $limit: 1 }
         ]);
 
-        return {
+        const result = {
             savingsRate: Math.round(savingsRate * 100) / 100,
             avgDailyExpense: Math.round(avgDailyExpense * 100) / 100,
             burnRate: Math.round(burnRate),
@@ -237,7 +257,10 @@ const analyticsService = {
             totalReceivables: creditTotals.totalReceivables,
             totalLiabilities: creditTotals.totalLiabilities
         };
-    }
+
+        cache.set(cacheKey, result, 600);
+        return result;
+    },
 };
 
 module.exports = analyticsService;

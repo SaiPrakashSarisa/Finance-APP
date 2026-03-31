@@ -21,7 +21,7 @@ const creditService = {
     },
 
     // Create credit entry and update balance
-    async create(data) {
+    async create(data, session = null) {
         data.remainingAmount = data.amount;
 
         // For taken + emi_loan, no account link
@@ -29,19 +29,21 @@ const creditService = {
             data.linkedAccountId = null;
         }
 
+        const options = session ? { session } : {};
         const credit = new Credit(data);
-        await credit.save();
+        await credit.save(options);
 
         // Update account balance
         if (data.type === 'given' && data.linkedAccountId) {
-            await accountService.updateBalance(data.linkedAccountId, -data.amount);
+            await accountService.updateBalance(data.linkedAccountId, -data.amount, session);
         } else if (data.type === 'taken' && data.subType === 'account_credit' && data.linkedAccountId) {
-            await accountService.updateBalance(data.linkedAccountId, data.amount);
+            await accountService.updateBalance(data.linkedAccountId, data.amount, session);
         }
         // emi_loan: no balance update
 
         return Credit.findById(credit._id)
-            .populate('linkedAccountId', 'name type');
+            .populate('linkedAccountId', 'name type')
+            .session(session);
     },
 
     // Update credit (editable fields only)
@@ -60,34 +62,98 @@ const creditService = {
     },
 
     // Record repayment (called internally by transactionService)
-    async applyRepayment(creditId, userId, repayAmount) {
-        const credit = await Credit.findOne({ _id: creditId, userId });
-        if (!credit) throw new Error('Credit entry not found');
-        if (credit.status === 'settled') throw new Error('Credit is already settled');
-        if (repayAmount > credit.remainingAmount) {
-            throw new Error('Repayment amount exceeds remaining amount');
+    async applyRepayment(creditId, userId, repayAmount, session = null) {
+        const query = { 
+            _id: creditId, 
+            userId, 
+            status: { $ne: 'settled' },
+            remainingAmount: { $gte: repayAmount }
+        };
+        const options = { new: true, runValidators: true };
+        if (session) options.session = session;
+
+        // Use aggregation pipeline in findOneAndUpdate for atomic status & amount update
+        const updated = await Credit.findOneAndUpdate(
+            query,
+            [
+                {
+                    $set: {
+                        remainingAmount: { $subtract: ['$remainingAmount', repayAmount] }
+                    }
+                },
+                {
+                    $set: {
+                        status: {
+                            $cond: { 
+                                if: { $lte: ['$remainingAmount', 0] }, 
+                                then: 'settled', 
+                                else: 'partial' 
+                            }
+                        }
+                    }
+                }
+            ],
+            options
+        );
+
+        if (!updated) {
+            // Check why it failed
+            const credit = await Credit.findOne({ _id: creditId, userId });
+            if (!credit) throw new Error('Credit entry not found');
+            if (credit.status === 'settled') throw new Error('Credit is already settled');
+            if (repayAmount > credit.remainingAmount) {
+                throw new Error(`Repayment amount (${repayAmount}) exceeds remaining amount (${credit.remainingAmount})`);
+            }
+            throw new Error('Repayment failed due to concurrent update or invalid state');
         }
 
-        credit.remainingAmount -= repayAmount;
-        credit.status = credit.remainingAmount === 0 ? 'settled' : 'partial';
-        await credit.save();
-
-        return credit;
+        return updated;
     },
 
     // Reverse a repayment (called when deleting/editing a credit_repay transaction)
-    async reverseRepayment(creditId, userId, repayAmount) {
-        const credit = await Credit.findOne({ _id: creditId, userId });
-        if (!credit) throw new Error('Credit entry not found');
+    async reverseRepayment(creditId, userId, repayAmount, session = null) {
+        const query = { _id: creditId, userId };
+        const options = { new: true };
+        if (session) options.session = session;
 
-        credit.remainingAmount += repayAmount;
-        if (credit.remainingAmount > credit.amount) {
-            credit.remainingAmount = credit.amount;
-        }
-        credit.status = credit.remainingAmount === credit.amount ? 'active' : 'partial';
-        await credit.save();
+        const updated = await Credit.findOneAndUpdate(
+            query,
+            [
+                {
+                    $set: {
+                        remainingAmount: { $add: ['$remainingAmount', repayAmount] }
+                    }
+                },
+                {
+                    $set: {
+                        // Ensure remaining amount does not exceed original amount
+                        remainingAmount: {
+                            $cond: {
+                                if: { $gt: ['$remainingAmount', '$amount'] },
+                                then: '$amount',
+                                else: '$remainingAmount'
+                            }
+                        }
+                    }
+                },
+                {
+                    $set: {
+                        status: {
+                            $cond: {
+                                if: { $eq: ['$remainingAmount', '$amount'] },
+                                then: 'active',
+                                else: 'partial'
+                            }
+                        }
+                    }
+                }
+            ],
+            options
+        );
 
-        return credit;
+        if (!updated) throw new Error('Credit entry not found during reversal');
+
+        return updated;
     },
 
     // Get totals

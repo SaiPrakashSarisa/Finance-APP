@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
 const accountService = require('./accountService');
 const creditService = require('./creditService');
+const { runInTransaction } = require('../utils/dbSession');
+const cache = require('../utils/cache');
 
 const transactionService = {
     // Get transactions with filters
@@ -59,30 +61,30 @@ const transactionService = {
     },
 
     // Helper: apply balance effect for a transaction
-    async _applyBalanceEffect(tx, multiplier = 1) {
+    async _applyBalanceEffect(tx, multiplier = 1, session = null) {
         const amount = tx.amount * multiplier;
         switch (tx.type) {
             case 'income':
-                await accountService.updateBalance(tx.accountId, amount);
+                await accountService.updateBalance(tx.accountId, amount, session);
                 break;
             case 'expense':
-                await accountService.updateBalance(tx.accountId, -amount);
+                await accountService.updateBalance(tx.accountId, -amount, session);
                 break;
             case 'transfer':
-                await accountService.updateBalance(tx.accountId, -amount);
-                await accountService.updateBalance(tx.toAccountId, amount);
+                await accountService.updateBalance(tx.accountId, -amount, session);
+                await accountService.updateBalance(tx.toAccountId, amount, session);
                 break;
             case 'credit_repay':
                 if (tx.creditId && tx.accountId) {
                     const Credit = require('../models/Credit');
-                    const credit = await Credit.findById(typeof tx.creditId === 'object' && tx.creditId._id ? tx.creditId._id : tx.creditId);
+                    const credit = await Credit.findById(typeof tx.creditId === 'object' && tx.creditId._id ? tx.creditId._id : tx.creditId).session(session);
                     if (credit) {
                         if (credit.type === 'given') {
                             // Money coming back to you
-                            await accountService.updateBalance(tx.accountId, amount);
+                            await accountService.updateBalance(tx.accountId, amount, session);
                         } else {
                             // You're paying back
-                            await accountService.updateBalance(tx.accountId, -amount);
+                            await accountService.updateBalance(tx.accountId, -amount, session);
                         }
                     }
                 }
@@ -92,78 +94,96 @@ const transactionService = {
 
     // Create transaction and update balance
     async create(data) {
-        // Handle credit_repay: validate and apply repayment
-        if (data.type === 'credit_repay') {
-            if (!data.creditId) throw new Error('Credit entry is required for repayment');
-            await creditService.applyRepayment(data.creditId, data.userId, data.amount);
-        }
+        return runInTransaction(async (session) => {
+            // Handle credit_repay: validate and apply repayment
+            if (data.type === 'credit_repay') {
+                if (!data.creditId) throw new Error('Credit entry is required for repayment');
+                await creditService.applyRepayment(data.creditId, data.userId, data.amount, session);
+            }
 
-        const transaction = new Transaction(data);
-        await transaction.save();
+            const transaction = new Transaction(data);
+            await transaction.save({ session });
 
-        // Apply balance effect
-        await this._applyBalanceEffect(transaction);
+            // Apply balance effect
+            await this._applyBalanceEffect(transaction, 1, session);
 
-        return Transaction.findById(transaction._id)
-            .populate('accountId', 'name type')
-            .populate('toAccountId', 'name type')
-            .populate('categoryId', 'name color icon type')
-            .populate('creditId', 'personName type subType amount remainingAmount status');
+            // Invalidate cache
+            cache.clearUserCache(data.userId);
+
+            return Transaction.findById(transaction._id)
+                .populate('accountId', 'name type')
+                .populate('toAccountId', 'name type')
+                .populate('categoryId', 'name color icon type')
+                .populate('creditId', 'personName type subType amount remainingAmount status')
+                .session(session);
+        });
     },
 
     // Update transaction: reverse old balance, apply edits, apply new balance
     async update(transactionId, userId, updates) {
-        const existing = await Transaction.findOne({ _id: transactionId, userId });
-        if (!existing) throw new Error('Transaction not found');
+        return runInTransaction(async (session) => {
+            const existing = await Transaction.findOne({ _id: transactionId, userId }).session(session);
+            if (!existing) throw new Error('Transaction not found');
 
-        // 1. Reverse old balance effect
-        await this._applyBalanceEffect(existing, -1);
+            // 1. Reverse old balance effect
+            await this._applyBalanceEffect(existing, -1, session);
 
-        // 2. Reverse old credit repayment if applicable
-        if (existing.type === 'credit_repay' && existing.creditId) {
-            await creditService.reverseRepayment(existing.creditId, userId, existing.amount);
-        }
+            // 2. Reverse old credit repayment if applicable
+            if (existing.type === 'credit_repay' && existing.creditId) {
+                await creditService.reverseRepayment(existing.creditId, userId, existing.amount, session);
+            }
 
-        // 3. Apply allowed updates
-        const allowed = ['type', 'amount', 'accountId', 'toAccountId', 'categoryId', 'creditId', 'note', 'date'];
-        allowed.forEach(field => {
-            if (updates[field] !== undefined) existing[field] = updates[field];
+            // 3. Apply allowed updates
+            const allowed = ['type', 'amount', 'accountId', 'toAccountId', 'categoryId', 'creditId', 'note', 'date'];
+            allowed.forEach(field => {
+                if (updates[field] !== undefined) existing[field] = updates[field];
+            });
+            if (existing.type !== 'transfer') existing.toAccountId = null;
+            if (existing.type === 'transfer') existing.categoryId = null;
+            if (existing.type !== 'credit_repay') existing.creditId = null;
+            await existing.save({ session });
+
+            // 4. Apply new credit repayment if applicable
+            if (existing.type === 'credit_repay' && existing.creditId) {
+                await creditService.applyRepayment(existing.creditId, userId, existing.amount, session);
+            }
+
+            // 5. Apply new balance effect
+            await this._applyBalanceEffect(existing, 1, session);
+
+            // Invalidate cache
+            cache.clearUserCache(userId);
+
+            return Transaction.findById(existing._id)
+                .populate('accountId', 'name type')
+                .populate('toAccountId', 'name type')
+                .populate('categoryId', 'name color icon type')
+                .populate('creditId', 'personName type subType amount remainingAmount status')
+                .session(session);
         });
-        if (existing.type !== 'transfer') existing.toAccountId = null;
-        if (existing.type === 'transfer') existing.categoryId = null;
-        if (existing.type !== 'credit_repay') existing.creditId = null;
-        await existing.save();
-
-        // 4. Apply new credit repayment if applicable
-        if (existing.type === 'credit_repay' && existing.creditId) {
-            await creditService.applyRepayment(existing.creditId, userId, existing.amount);
-        }
-
-        // 5. Apply new balance effect
-        await this._applyBalanceEffect(existing);
-
-        return Transaction.findById(existing._id)
-            .populate('accountId', 'name type')
-            .populate('toAccountId', 'name type')
-            .populate('categoryId', 'name color icon type')
-            .populate('creditId', 'personName type subType amount remainingAmount status');
     },
 
     // Delete transaction and reverse balance
     async delete(transactionId, userId) {
-        const transaction = await Transaction.findOne({ _id: transactionId, userId });
-        if (!transaction) throw new Error('Transaction not found');
+        return runInTransaction(async (session) => {
+            const transaction = await Transaction.findOne({ _id: transactionId, userId }).session(session);
+            if (!transaction) throw new Error('Transaction not found');
 
-        // Reverse balance effect
-        await this._applyBalanceEffect(transaction, -1);
+            // Reverse balance effect
+            await this._applyBalanceEffect(transaction, -1, session);
 
-        // Reverse credit repayment if applicable
-        if (transaction.type === 'credit_repay' && transaction.creditId) {
-            await creditService.reverseRepayment(transaction.creditId, userId, transaction.amount);
-        }
+            // Reverse credit repayment if applicable
+            if (transaction.type === 'credit_repay' && transaction.creditId) {
+                await creditService.reverseRepayment(transaction.creditId, userId, transaction.amount, session);
+            }
 
-        await Transaction.deleteOne({ _id: transactionId });
-        return transaction;
+            await Transaction.deleteOne({ _id: transactionId }, { session });
+
+            // Invalidate cache
+            cache.clearUserCache(userId);
+
+            return transaction;
+        });
     }
 };
 
