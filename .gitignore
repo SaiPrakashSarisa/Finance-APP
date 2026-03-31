@@ -2,7 +2,7 @@
 node_modules/
 **/node_modules/
 
-# environment variables
+# environment variables are
 .env
 .env.local
 .env.development.local
