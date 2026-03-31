@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Settings, Tag, ChevronRight, User, Bell, Palette, Shield, LayoutDashboard } from 'lucide-react';
 import Link from 'next/link';
 import { Select } from '@/components/Select';
+import { Switch } from '@/components/Switch';
 import { getUserSettings, updateUserSettings } from '@/lib/api';
 
 const RANGE_OPTIONS = [
@@ -38,14 +39,14 @@ export default function SettingsHubPage() {
         load();
     }, []);
 
-    const handleRangeChange = async (val: string) => {
+    const handleUpdateSetting = async (key: string, val: any) => {
         setUpdating(true);
         try {
-            const res = await updateUserSettings({ dashboardRange: val });
+            const res = await updateUserSettings({ [key]: val });
             setSettings(res.data);
         } catch (err) {
-            console.error('Failed to update settings:', err);
-            alert('Failed to update settings');
+            console.error('Failed to update setting:', err);
+            alert('Failed to update setting');
         } finally {
             setUpdating(false);
         }
@@ -94,10 +95,35 @@ export default function SettingsHubPage() {
                             <Select
                                 options={RANGE_OPTIONS}
                                 value={settings?.dashboardRange || '1m'}
-                                onChange={handleRangeChange}
+                                onChange={(val) => handleUpdateSetting('dashboardRange', val)}
                                 disabled={updating}
                             />
                             {updating && <p className="text-[10px] text-violet-400 mt-2 animate-pulse text-right px-1">Saving changes...</p>}
+                        </div>
+                    </div>
+                </section>
+
+                {/* Feature Toggles Section */}
+                <section>
+                    <h2 className="text-xs md:text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3 md:mb-4 ml-1">
+                        Feature Toggles
+                    </h2>
+                    <div className="glass-card p-4 md:p-6">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-emerald-400/10 text-emerald-400">
+                                    <Shield className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-white">Budgeting Feature</h3>
+                                    <p className="text-xs text-muted mt-1">Enable or disable monthly budget tracking and limits.</p>
+                                </div>
+                            </div>
+                            <Switch 
+                                checked={settings?.budgetEnabled !== false} 
+                                onChange={(val) => handleUpdateSetting('budgetEnabled', val)}
+                                disabled={updating}
+                            />
                         </div>
                     </div>
                 </section>

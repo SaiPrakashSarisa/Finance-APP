@@ -48,6 +48,7 @@ export default function TransactionsPage() {
         amount: '',
         accountId: '',
         toAccountId: '',
+        mainCategoryId: '',
         categoryId: '',
         creditId: '',
         note: '',
@@ -134,12 +135,30 @@ export default function TransactionsPage() {
     const openEdit = (tx: any) => {
         setEditingTransaction(tx);
         const getId = (field: any) => typeof field === 'object' && field?._id ? field._id : (field || '');
+        
+        const catId = getId(tx.categoryId);
+        const category = categories.find(c => c._id === catId);
+        
+        let mainCategoryId = '';
+        let subCategoryId = '';
+        
+        if (category) {
+            if (category.parentCategoryId) {
+                mainCategoryId = category.parentCategoryId;
+                subCategoryId = catId;
+            } else {
+                mainCategoryId = catId;
+                subCategoryId = '';
+            }
+        }
+
         setForm({
             type: tx.type,
             amount: String(tx.amount),
             accountId: getId(tx.accountId),
             toAccountId: getId(tx.toAccountId),
-            categoryId: getId(tx.categoryId),
+            mainCategoryId: mainCategoryId,
+            categoryId: subCategoryId,
             creditId: getId(tx.creditId),
             note: tx.note || '',
             date: tx.date ? new Date(tx.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -159,8 +178,9 @@ export default function TransactionsPage() {
                 note: form.note,
                 date: form.date,
             };
-            if (form.type !== 'transfer' && form.type !== 'credit_repay' && form.categoryId) {
-                data.categoryId = form.categoryId;
+            if (form.type !== 'transfer' && form.type !== 'credit_repay') {
+                const finalCategoryId = form.categoryId || form.mainCategoryId;
+                if (finalCategoryId) data.categoryId = finalCategoryId;
             }
             if (form.type === 'transfer') {
                 data.toAccountId = form.toAccountId;
@@ -503,7 +523,7 @@ export default function TransactionsPage() {
                                 <button
                                     key={t}
                                     type="button"
-                                    onClick={() => setForm({ ...form, type: t, creditId: '', categoryId: '', toAccountId: '' })}
+                                    onClick={() => setForm({ ...form, type: t, creditId: '', mainCategoryId: '', categoryId: '', toAccountId: '' })}
                                     className={`py-2 rounded-lg text-sm font-medium transition-all ${form.type === t
                                         ? t === 'income' ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/40'
                                             : t === 'expense' ? 'bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/40'
@@ -567,17 +587,32 @@ export default function TransactionsPage() {
                     )}
 
                     {form.type !== 'transfer' && form.type !== 'credit_repay' && (
-                        <div>
-                            <label className="block text-xs font-medium text-muted mb-1.5">Category</label>
-                            <Select
-                                options={categories.filter(c => c.type === form.type).map((c) => ({
-                                    label: c.name,
-                                    value: c._id
-                                }))}
-                                value={form.categoryId}
-                                onChange={(val) => setForm({ ...form, categoryId: val })}
-                                placeholder="Select category"
-                            />
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-medium text-muted mb-1.5">Category</label>
+                                <Select
+                                    options={categories.filter(c => !c.parentCategoryId && c.type === form.type).map((c) => ({
+                                        label: c.name,
+                                        value: c._id
+                                    }))}
+                                    value={form.mainCategoryId}
+                                    onChange={(val) => setForm({ ...form, mainCategoryId: val, categoryId: '' })}
+                                    placeholder="Select main"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-muted mb-1.5">Sub Category</label>
+                                <Select
+                                    options={categories.filter(c => c.parentCategoryId === form.mainCategoryId).map((c) => ({
+                                        label: c.name,
+                                        value: c._id
+                                    }))}
+                                    value={form.categoryId}
+                                    onChange={(val) => setForm({ ...form, categoryId: val })}
+                                    placeholder="Optional"
+                                    disabled={!form.mainCategoryId}
+                                />
+                            </div>
                         </div>
                     )}
 

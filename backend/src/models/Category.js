@@ -30,6 +30,11 @@ const categorySchema = new mongoose.Schema({
         type: String,
         default: '📁'
     },
+    parentCategoryId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Category',
+        default: null
+    },
     createdAt: {
         type: Date,
         default: Date.now
@@ -37,5 +42,6 @@ const categorySchema = new mongoose.Schema({
 });
 
 categorySchema.index({ userId: 1, type: 1 });
+categorySchema.index({ parentCategoryId: 1 });
 
 module.exports = mongoose.model('Category', categorySchema);

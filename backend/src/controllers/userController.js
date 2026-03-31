@@ -13,10 +13,14 @@ const userController = {
 
     async updateSettings(req, res) {
         try {
-            const { dashboardRange } = req.body;
+            const { dashboardRange, budgetEnabled } = req.body;
+            const updateFields = {};
+            if (dashboardRange !== undefined) updateFields['settings.dashboardRange'] = dashboardRange;
+            if (budgetEnabled !== undefined) updateFields['settings.budgetEnabled'] = budgetEnabled;
+
             const user = await User.findByIdAndUpdate(
                 req.userId,
-                { $set: { 'settings.dashboardRange': dashboardRange } },
+                { $set: updateFields },
                 { new: true, runValidators: true }
             );
             if (!user) return res.status(404).json({ success: false, error: 'User not found' });

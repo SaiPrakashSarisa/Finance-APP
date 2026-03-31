@@ -45,7 +45,10 @@ export const deleteTransaction = (id: string) =>
   request<any>(`/transactions/${id}`, { method: 'DELETE' });
 
 // ── Categories ──
-export const getCategories = () => request<any>('/categories');
+export const getCategories = (params?: Record<string, string>) => {
+  const query = params ? '?' + new URLSearchParams(params).toString() : '';
+  return request<any>(`/categories${query}`);
+};
 export const createCategory = (data: any) =>
   request<any>('/categories', { method: 'POST', body: JSON.stringify(data) });
 export const updateCategory = (id: string, data: any) =>
@@ -62,6 +65,16 @@ export const createCredit = (data: any) =>
   request<any>('/credits', { method: 'POST', body: JSON.stringify(data) });
 export const updateCredit = (id: string, data: any) =>
   request<any>(`/credits/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+
+// ── Budgets ──
+export const getBudgets = (params?: Record<string, string>) => {
+  const query = params ? '?' + new URLSearchParams(params).toString() : '';
+  return request<any>(`/budgets${query}`);
+};
+export const upsertBudget = (data: any) =>
+  request<any>('/budgets', { method: 'POST', body: JSON.stringify(data) });
+export const deleteBudget = (id: string) =>
+  request<any>(`/budgets/${id}`, { method: 'DELETE' });
 
 // ── Analytics ──
 export const getDashboard = (month?: number, year?: number) => {

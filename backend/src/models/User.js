@@ -39,6 +39,10 @@ const userSchema = new mongoose.Schema({
       type: String,
       enum: ['1m', '3m', '6m', '1y', 'all'],
       default: '1m'
+    },
+    budgetEnabled: {
+      type: Boolean,
+      default: true
     }
   }
 });

@@ -16,6 +16,7 @@ import {
     Settings,
     LogOut,
     UserCircle,
+    PieChart,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -23,6 +24,7 @@ const navItems = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/accounts', label: 'Accounts', icon: Wallet },
     { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
+    { href: '/budgets', label: 'Budgets', icon: PieChart },
     { href: '/credits', label: 'Credits', icon: HandCoins },
     { href: '/insights', label: 'Insights', icon: TrendingUp },
     { href: '/settings', label: 'Settings', icon: Settings },
@@ -39,9 +41,14 @@ export default function Sidebar() {
         return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
     };
 
+    const filteredNavItems = navItems.filter(item => {
+        if (item.href === '/budgets' && user?.settings?.budgetEnabled === false) return false;
+        return true;
+    });
+
     const navContent = (
         <nav className="flex flex-col gap-3 mt-10 px-1">
-            {navItems.map((item) => {
+            {filteredNavItems.map((item) => {
                 const isActive = pathname === item.href;
                 const Icon = item.icon;
                 return (
