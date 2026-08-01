@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Pencil, Trash2, ArrowLeftRight, Filter, X } from 'lucide-react';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getAccounts, getCategories, getCredits } from '@/lib/api';
@@ -42,6 +42,8 @@ export default function TransactionsPage() {
     const [loadingMore, setLoadingMore] = useState(false);
     const observerTarget = useRef<HTMLDivElement>(null);
 
+    const [expandedReceipts, setExpandedReceipts] = useState<Record<string, boolean>>({});
+
     // Form
     const emptyForm = {
         type: 'expense',
@@ -51,6 +53,9 @@ export default function TransactionsPage() {
         mainCategoryId: '',
         categoryId: '',
         creditId: '',
+        merchantName: '',
+        isItemized: false,
+        items: [] as Array<{ name: string; quantity: number; unit: string; unitPrice: number; totalPrice: number }>,
         note: '',
         date: new Date().toISOString().split('T')[0],
     };
@@ -160,10 +165,64 @@ export default function TransactionsPage() {
             mainCategoryId: mainCategoryId,
             categoryId: subCategoryId,
             creditId: getId(tx.creditId),
+            merchantName: tx.merchantName || (tx.merchantId?.name || ''),
+            isItemized: !!tx.isItemized,
+            items: tx.items && tx.items.length > 0 ? tx.items.map((i: any) => ({
+                name: i.name || '',
+                quantity: i.quantity || 1,
+                unit: i.unit || 'unit',
+                unitPrice: i.unitPrice || 0,
+                totalPrice: i.totalPrice || ((i.quantity || 1) * (i.unitPrice || 0))
+            })) : [],
             note: tx.note || '',
             date: tx.date ? new Date(tx.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         });
         setModalOpen(true);
+    };
+
+    const addItemRow = () => {
+        setForm(prev => ({
+            ...prev,
+            isItemized: true,
+            items: [...prev.items, { name: '', quantity: 1, unit: 'kg', unitPrice: 0, totalPrice: 0 }]
+        }));
+    };
+
+    const updateItemRow = (index: number, field: string, value: any) => {
+        setForm(prev => {
+            const updatedItems = [...prev.items];
+            const item = { ...updatedItems[index], [field]: value };
+            if (field === 'quantity' || field === 'unitPrice') {
+                const q = field === 'quantity' ? parseFloat(value) || 0 : item.quantity;
+                const p = field === 'unitPrice' ? parseFloat(value) || 0 : item.unitPrice;
+                item.totalPrice = Math.round(q * p * 100) / 100;
+            }
+            updatedItems[index] = item;
+            
+            // Recalculate total amount if itemized
+            const totalSum = updatedItems.reduce((sum, i) => sum + (i.totalPrice || 0), 0);
+            return {
+                ...prev,
+                items: updatedItems,
+                amount: totalSum > 0 ? String(totalSum) : prev.amount
+            };
+        });
+    };
+
+    const removeItemRow = (index: number) => {
+        setForm(prev => {
+            const updatedItems = prev.items.filter((_, i) => i !== index);
+            const totalSum = updatedItems.reduce((sum, i) => sum + (i.totalPrice || 0), 0);
+            return {
+                ...prev,
+                items: updatedItems,
+                amount: totalSum > 0 ? String(totalSum) : prev.amount
+            };
+        });
+    };
+
+    const toggleReceipt = (id: string) => {
+        setExpandedReceipts(prev => ({ ...prev, [id]: !prev[id] }));
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -178,6 +237,27 @@ export default function TransactionsPage() {
                 note: form.note,
                 date: form.date,
             };
+
+            if (form.type === 'expense' && form.merchantName.trim()) {
+                data.merchantName = form.merchantName.trim();
+            }
+
+            if (form.type === 'expense' && form.isItemized && form.items.length > 0) {
+                data.isItemized = true;
+                data.items = form.items.filter(i => i.name.trim()).map(i => ({
+                    name: i.name.trim(),
+                    quantity: Number(i.quantity) || 1,
+                    unit: i.unit || 'unit',
+                    unitPrice: Number(i.unitPrice) || 0,
+                    totalPrice: Number(i.totalPrice) || ((Number(i.quantity) || 1) * (Number(i.unitPrice) || 0))
+                }));
+                const sum = data.items.reduce((acc: number, item: any) => acc + item.totalPrice, 0);
+                if (sum > 0) data.amount = sum;
+            } else {
+                data.isItemized = false;
+                data.items = [];
+            }
+
             if (form.type !== 'transfer' && form.type !== 'credit_repay') {
                 const finalCategoryId = form.categoryId || form.mainCategoryId;
                 if (finalCategoryId) data.categoryId = finalCategoryId;
@@ -378,35 +458,78 @@ export default function TransactionsPage() {
                             </thead>
                             <tbody>
                                 {transactions.map((tx: any) => (
-                                    <tr key={tx._id} className="border-b border-border/50 hover:bg-white/[0.02] transition-colors">
-                                        <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{formatDate(tx.date)}</td>
-                                        <td className="px-4 py-3">
-                                            <Badge label={tx.type} className={TRANSACTION_TYPE_COLORS[tx.type]} />
-                                        </td>
-                                        <td className="px-4 py-3 text-white">
-                                            {getAccountName(tx.accountId)}
-                                            {tx.type === 'transfer' && tx.toAccountId && (
-                                                <span className="text-muted"> → {getAccountName(tx.toAccountId)}</span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3 text-slate-300">{tx.type === 'credit_repay' ? getCreditLabel(tx.creditId) : tx.categoryId ? getCategoryName(tx.categoryId) : '—'}</td>
-                                        <td className={`px-4 py-3 text-right font-semibold ${tx.type === 'income' ? 'text-emerald-400' : tx.type === 'expense' ? 'text-rose-400' : tx.type === 'credit_repay' ? 'text-cyan-400' : 'text-violet-400'
-                                            }`}>
-                                            {tx.type === 'income' || (tx.type === 'credit_repay' && tx.creditId?.type === 'given') ? '+' : tx.type === 'expense' || tx.type === 'credit_repay' ? '-' : ''}
-                                            {formatCurrency(tx.amount)}
-                                        </td>
-                                        <td className="px-4 py-3 text-slate-400 max-w-[150px] truncate">{tx.note || ''}</td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex gap-1">
-                                                <button onClick={() => openEdit(tx)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
-                                                    <Pencil size={15} />
-                                                </button>
-                                                <button onClick={() => setDeleteTarget(tx._id)} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors">
-                                                    <Trash2 size={15} />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                    <React.Fragment key={tx._id}>
+                                        <tr className="border-b border-border/50 hover:bg-white/[0.02] transition-colors">
+                                            <td className="px-4 py-3 text-slate-300 whitespace-nowrap">{formatDate(tx.date)}</td>
+                                            <td className="px-4 py-3">
+                                                <Badge label={tx.type} className={TRANSACTION_TYPE_COLORS[tx.type]} />
+                                            </td>
+                                            <td className="px-4 py-3 text-white">
+                                                {getAccountName(tx.accountId)}
+                                                {tx.type === 'transfer' && tx.toAccountId && (
+                                                    <span className="text-muted"> → {getAccountName(tx.toAccountId)}</span>
+                                                )}
+                                                {tx.merchantName && (
+                                                    <div className="text-xs text-amber-400 font-medium flex items-center gap-1 mt-0.5">
+                                                        <span>🏪 {tx.merchantName}</span>
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3 text-slate-300">
+                                                {tx.type === 'credit_repay' ? getCreditLabel(tx.creditId) : tx.categoryId ? getCategoryName(tx.categoryId) : '—'}
+                                                {tx.isItemized && tx.items?.length > 0 && (
+                                                    <button 
+                                                        onClick={() => toggleReceipt(tx._id)}
+                                                        className="mt-1 text-xs text-violet-400 hover:text-violet-300 underline block"
+                                                    >
+                                                        {expandedReceipts[tx._id] ? 'Hide Receipt Items ▲' : `🛒 ${tx.items.length} Items (Receipt) ▼`}
+                                                    </button>
+                                                )}
+                                            </td>
+                                            <td className={`px-4 py-3 text-right font-semibold ${tx.type === 'income' ? 'text-emerald-400' : tx.type === 'expense' ? 'text-rose-400' : tx.type === 'credit_repay' ? 'text-cyan-400' : 'text-violet-400'
+                                                }`}>
+                                                {tx.type === 'income' || (tx.type === 'credit_repay' && tx.creditId?.type === 'given') ? '+' : tx.type === 'expense' || tx.type === 'credit_repay' ? '-' : ''}
+                                                {formatCurrency(tx.amount)}
+                                            </td>
+                                            <td className="px-4 py-3 text-slate-400 max-w-[150px] truncate">{tx.note || ''}</td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex gap-1">
+                                                    <button onClick={() => openEdit(tx)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
+                                                        <Pencil size={15} />
+                                                    </button>
+                                                    <button onClick={() => setDeleteTarget(tx._id)} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors">
+                                                        <Trash2 size={15} />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {/* Expanded Itemized Receipt Sub-row */}
+                                        {tx.isItemized && expandedReceipts[tx._id] && tx.items?.length > 0 && (
+                                            <tr className="bg-white/[0.01] border-b border-border/40">
+                                                <td colSpan={7} className="px-6 py-3">
+                                                    <div className="bg-surface/90 border border-violet-500/30 rounded-xl p-3 max-w-xl">
+                                                        <p className="text-xs font-semibold text-violet-400 mb-2">
+                                                            🧾 {tx.merchantName ? `${tx.merchantName} Receipt Items` : 'Itemized Receipt Breakdown'}
+                                                        </p>
+                                                        <div className="grid grid-cols-12 gap-2 text-xs text-slate-400 border-b border-border/50 pb-1 mb-1 font-semibold">
+                                                            <div className="col-span-5">Item</div>
+                                                            <div className="col-span-3 text-center">Qty & Unit</div>
+                                                            <div className="col-span-2 text-right">Unit ₹</div>
+                                                            <div className="col-span-2 text-right">Total ₹</div>
+                                                        </div>
+                                                        {tx.items.map((item: any, idx: number) => (
+                                                            <div key={idx} className="grid grid-cols-12 gap-2 text-xs py-1 border-b border-white/5 text-slate-200">
+                                                                <div className="col-span-5 font-medium text-white">{item.name}</div>
+                                                                <div className="col-span-3 text-center text-slate-400">{item.quantity} {item.unit}</div>
+                                                                <div className="col-span-2 text-right text-slate-400">{formatCurrency(item.unitPrice)}</div>
+                                                                <div className="col-span-2 text-right font-semibold text-emerald-400">{formatCurrency(item.totalPrice)}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </React.Fragment>
                                 ))}
                             </tbody>
                         </table>
@@ -434,9 +557,20 @@ export default function TransactionsPage() {
                                                 <span className="text-muted"> → {getAccountName(tx.toAccountId)}</span>
                                             )}
                                         </p>
+                                        {tx.merchantName && (
+                                            <p className="text-xs text-amber-400 font-medium mt-0.5">🏪 {tx.merchantName}</p>
+                                        )}
                                         {tx.type === 'credit_repay' && tx.creditId && <p className="text-xs text-cyan-400 mt-0.5">{getCreditLabel(tx.creditId)}</p>}
                                         {tx.type !== 'credit_repay' && tx.categoryId && <p className="text-xs text-slate-400 mt-0.5">{getCategoryName(tx.categoryId)}</p>}
                                         {tx.note && <p className="text-xs text-slate-500 mt-1">{tx.note}</p>}
+                                        {tx.isItemized && tx.items?.length > 0 && (
+                                            <button 
+                                                onClick={() => toggleReceipt(tx._id)}
+                                                className="mt-1 text-xs text-violet-400 underline block"
+                                            >
+                                                {expandedReceipts[tx._id] ? 'Hide Receipt ▲' : `🛒 ${tx.items.length} Items ▼`}
+                                            </button>
+                                        )}
                                     </div>
                                     <div className="text-right">
                                         <p className={`text-base sm:text-lg font-bold ${tx.type === 'income' ? 'text-emerald-400' : tx.type === 'expense' ? 'text-rose-400' : tx.type === 'credit_repay' ? 'text-cyan-400' : 'text-violet-400'
@@ -454,6 +588,17 @@ export default function TransactionsPage() {
                                         </div>
                                     </div>
                                 </div>
+                                {tx.isItemized && expandedReceipts[tx._id] && tx.items?.length > 0 && (
+                                    <div className="mt-3 pt-2 border-t border-border/50 bg-black/20 p-2 rounded-lg">
+                                        <p className="text-[11px] font-semibold text-violet-400 mb-1">Receipt Items:</p>
+                                        {tx.items.map((item: any, idx: number) => (
+                                            <div key={idx} className="flex justify-between text-xs py-0.5 text-slate-300">
+                                                <span>{item.name} ({item.quantity} {item.unit})</span>
+                                                <span className="font-semibold text-emerald-400">{formatCurrency(item.totalPrice)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </motion.div>
                         ))}
 
@@ -613,6 +758,101 @@ export default function TransactionsPage() {
                                     disabled={!form.mainCategoryId}
                                 />
                             </div>
+                        </div>
+                    )}
+
+                    {form.type === 'expense' && (
+                        <div className="border border-border/60 rounded-xl p-3 bg-white/[0.02]">
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="block text-xs font-semibold text-violet-400">Store / Merchant (Optional)</label>
+                                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={form.isItemized} 
+                                        onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setForm(prev => ({
+                                                ...prev,
+                                                isItemized: checked,
+                                                items: checked && prev.items.length === 0 ? [{ name: '', quantity: 1, unit: 'kg', unitPrice: 0, totalPrice: 0 }] : prev.items
+                                            }));
+                                        }}
+                                        className="rounded border-slate-700 text-violet-600 focus:ring-violet-500"
+                                    />
+                                    <span>Itemize Receipt Products</span>
+                                </label>
+                            </div>
+                            <input 
+                                className="input-dark mb-2" 
+                                placeholder="Store name (e.g. D-Mart, Reliance)" 
+                                value={form.merchantName} 
+                                onChange={(e) => setForm({ ...form, merchantName: e.target.value })} 
+                            />
+
+                            {form.isItemized && (
+                                <div className="mt-3 pt-3 border-t border-border/40">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs font-semibold text-slate-300">Purchased Items</span>
+                                        <button 
+                                            type="button" 
+                                            onClick={addItemRow}
+                                            className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1 font-medium"
+                                        >
+                                            + Add Item
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+                                        {form.items.map((item, idx) => (
+                                            <div key={idx} className="grid grid-cols-12 gap-1.5 items-center text-xs bg-surface/80 p-2 rounded-lg border border-border/40">
+                                                <input 
+                                                    className="col-span-4 input-dark text-xs py-1 px-2" 
+                                                    placeholder="Item name (e.g. Rice)" 
+                                                    value={item.name}
+                                                    onChange={(e) => updateItemRow(idx, 'name', e.target.value)}
+                                                />
+                                                <input 
+                                                    className="col-span-2 input-dark text-xs py-1 px-1.5 text-center" 
+                                                    type="number" step="0.01" min="0.01" 
+                                                    placeholder="Qty" 
+                                                    value={item.quantity}
+                                                    onChange={(e) => updateItemRow(idx, 'quantity', e.target.value)}
+                                                />
+                                                <select 
+                                                    className="col-span-2 input-dark text-xs py-1 px-1 text-center"
+                                                    value={item.unit}
+                                                    onChange={(e) => updateItemRow(idx, 'unit', e.target.value)}
+                                                >
+                                                    <option value="kg">kg</option>
+                                                    <option value="L">L</option>
+                                                    <option value="pc">pc</option>
+                                                    <option value="g">g</option>
+                                                    <option value="ml">ml</option>
+                                                    <option value="unit">unit</option>
+                                                </select>
+                                                <input 
+                                                    className="col-span-3 input-dark text-xs py-1 px-1 text-right" 
+                                                    type="number" step="0.01" min="0" 
+                                                    placeholder="Unit ₹" 
+                                                    value={item.unitPrice || ''}
+                                                    onChange={(e) => updateItemRow(idx, 'unitPrice', e.target.value)}
+                                                />
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => removeItemRow(idx)}
+                                                    className="col-span-1 text-rose-400 hover:text-rose-300 text-center font-bold"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {form.items.length > 0 && (
+                                        <div className="mt-2 text-right text-xs text-slate-400 font-medium">
+                                            Receipt Subtotal: <span className="text-white font-bold">{formatCurrency(form.items.reduce((s, i) => s + (i.totalPrice || 0), 0))}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 

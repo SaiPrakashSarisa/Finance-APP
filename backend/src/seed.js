@@ -12,13 +12,18 @@ async function seed() {
         await mongoose.connect(MONGO_URI);
         console.log('Connected to MongoDB');
 
+        const Merchant = require('./models/Merchant');
+        const MasterItem = require('./models/MasterItem');
+
         // Clear existing data
         await Promise.all([
             User.deleteMany({}),
             Account.deleteMany({}),
             Category.deleteMany({}),
             Transaction.deleteMany({}),
-            Credit.deleteMany({})
+            Credit.deleteMany({}),
+            Merchant.deleteMany({}),
+            MasterItem.deleteMany({})
         ]);
         console.log('Cleared existing data');
 
@@ -44,6 +49,7 @@ async function seed() {
             { userId: user._id, name: 'Freelance', type: 'income', color: '#06b6d4', icon: '💻' },
             { userId: user._id, name: 'Investment Returns', type: 'income', color: '#8b5cf6', icon: '📈' },
             { userId: user._id, name: 'Food & Dining', type: 'expense', color: '#f43f5e', icon: '🍕' },
+            { userId: user._id, name: 'Groceries', type: 'expense', color: '#10b981', icon: '🛒' },
             { userId: user._id, name: 'Transport', type: 'expense', color: '#f59e0b', icon: '🚗' },
             { userId: user._id, name: 'Shopping', type: 'expense', color: '#ec4899', icon: '🛍️' },
             { userId: user._id, name: 'Bills & Utilities', type: 'expense', color: '#6366f1', icon: '📱' },
@@ -51,46 +57,70 @@ async function seed() {
             { userId: user._id, name: 'Health', type: 'expense', color: '#ef4444', icon: '🏥' },
             { userId: user._id, name: 'Education', type: 'expense', color: '#3b82f6', icon: '📚' }
         ]);
-        console.log('Created 10 categories');
+        console.log('Created categories');
 
         const catMap = {};
         categories.forEach(c => { catMap[c.name] = c._id; });
 
-        // Create sample transactions (last 3 months)
+        // Seed Merchant: D-Mart
+        const dmart = await Merchant.create({
+            userId: user._id,
+            name: 'D-Mart',
+            defaultCategoryId: catMap['Groceries'],
+            icon: '🛒',
+            transactionCount: 2
+        });
+
+        // Create sample transactions (including Itemized D-Mart Shopping Trips)
         const now = new Date();
-        const m = (monthsAgo, day) => {
-            const d = new Date(now.getFullYear(), now.getMonth() - monthsAgo, day);
-            return d;
-        };
+        const m = (monthsAgo, day) => new Date(now.getFullYear(), now.getMonth() - monthsAgo, day);
 
         await Transaction.create([
-            // Current month
+            // Month 1 (July) - D-Mart Shopping Trip
+            {
+                userId: user._id,
+                accountId: hdfc._id,
+                type: 'expense',
+                amount: 1014,
+                categoryId: catMap['Groceries'],
+                merchantId: dmart._id,
+                merchantName: 'D-Mart',
+                note: 'Monthly grocery refill',
+                date: m(1, 1),
+                isItemized: true,
+                items: [
+                    { name: 'Rice', quantity: 5, unit: 'kg', unitPrice: 64, totalPrice: 320, categoryId: catMap['Groceries'] },
+                    { name: 'Milk', quantity: 2, unit: 'L', unitPrice: 32, totalPrice: 64, categoryId: catMap['Groceries'] },
+                    { name: 'Soap', quantity: 4, unit: 'pc', unitPrice: 45, totalPrice: 180, categoryId: catMap['Groceries'] },
+                    { name: 'Oil', quantity: 2, unit: 'L', unitPrice: 225, totalPrice: 450, categoryId: catMap['Groceries'] }
+                ]
+            },
+            // Current Month (August) - D-Mart Shopping Trip (Price changes!)
+            {
+                userId: user._id,
+                accountId: hdfc._id,
+                type: 'expense',
+                amount: 1061,
+                categoryId: catMap['Groceries'],
+                merchantId: dmart._id,
+                merchantName: 'D-Mart',
+                note: 'August grocery refill',
+                date: m(0, 1),
+                isItemized: true,
+                items: [
+                    { name: 'Rice', quantity: 5, unit: 'kg', unitPrice: 70, totalPrice: 350, categoryId: catMap['Groceries'] }, // Rice +₹6/kg (+₹30)
+                    { name: 'Milk', quantity: 2, unit: 'L', unitPrice: 33, totalPrice: 66, categoryId: catMap['Groceries'] },  // Milk +₹1/L (+₹2)
+                    { name: 'Soap', quantity: 4, unit: 'pc', unitPrice: 41.25, totalPrice: 165, categoryId: catMap['Groceries'] }, // Soap -₹3.75/pc (-₹15)
+                    { name: 'Oil', quantity: 2, unit: 'L', unitPrice: 240, totalPrice: 480, categoryId: catMap['Groceries'] }  // Oil +₹15/L (+₹30)
+                ]
+            },
+            // Other transactions
             { userId: user._id, accountId: hdfc._id, type: 'income', amount: 75000, categoryId: catMap['Salary'], note: 'Monthly salary', date: m(0, 1) },
             { userId: user._id, accountId: hdfc._id, type: 'income', amount: 15000, categoryId: catMap['Freelance'], note: 'Web dev project', date: m(0, 5) },
-            { userId: user._id, accountId: hdfc._id, type: 'expense', amount: 4500, categoryId: catMap['Food & Dining'], note: 'Groceries + restaurants', date: m(0, 3) },
             { userId: user._id, accountId: icici._id, type: 'expense', amount: 12000, categoryId: catMap['Shopping'], note: 'New shoes and clothes', date: m(0, 7) },
-            { userId: user._id, accountId: hdfc._id, type: 'expense', amount: 3000, categoryId: catMap['Transport'], note: 'Fuel + metro', date: m(0, 10) },
-            { userId: user._id, accountId: sbi._id, type: 'expense', amount: 5500, categoryId: catMap['Bills & Utilities'], note: 'Electricity + Internet', date: m(0, 8) },
-            { userId: user._id, accountId: hdfc._id, type: 'expense', amount: 2000, categoryId: catMap['Entertainment'], note: 'Movie + Netflix', date: m(0, 12) },
-            { userId: user._id, accountId: hdfc._id, type: 'transfer', amount: 10000, note: 'Savings transfer', date: m(0, 2), toAccountId: sbi._id },
-
-            // Last month
-            { userId: user._id, accountId: hdfc._id, type: 'income', amount: 75000, categoryId: catMap['Salary'], note: 'Monthly salary', date: m(1, 1) },
-            { userId: user._id, accountId: hdfc._id, type: 'expense', amount: 6000, categoryId: catMap['Food & Dining'], note: 'Groceries', date: m(1, 5) },
-            { userId: user._id, accountId: hdfc._id, type: 'expense', amount: 8000, categoryId: catMap['Shopping'], note: 'Electronics', date: m(1, 10) },
-            { userId: user._id, accountId: sbi._id, type: 'expense', amount: 4500, categoryId: catMap['Bills & Utilities'], note: 'Bills', date: m(1, 8) },
-            { userId: user._id, accountId: hdfc._id, type: 'expense', amount: 2500, categoryId: catMap['Transport'], note: 'Fuel', date: m(1, 15) },
-            { userId: user._id, accountId: hdfc._id, type: 'expense', amount: 3500, categoryId: catMap['Health'], note: 'Doctor + medicines', date: m(1, 20) },
-            { userId: user._id, accountId: hdfc._id, type: 'income', amount: 5000, categoryId: catMap['Investment Returns'], note: 'Dividend', date: m(1, 25) },
-
-            // 2 months ago
-            { userId: user._id, accountId: hdfc._id, type: 'income', amount: 75000, categoryId: catMap['Salary'], note: 'Monthly salary', date: m(2, 1) },
-            { userId: user._id, accountId: hdfc._id, type: 'income', amount: 20000, categoryId: catMap['Freelance'], note: 'App development', date: m(2, 12) },
-            { userId: user._id, accountId: hdfc._id, type: 'expense', amount: 5000, categoryId: catMap['Food & Dining'], note: 'Groceries', date: m(2, 4) },
-            { userId: user._id, accountId: icici._id, type: 'expense', amount: 15000, categoryId: catMap['Shopping'], note: 'Laptop accessories', date: m(2, 8) },
-            { userId: user._id, accountId: hdfc._id, type: 'expense', amount: 7000, categoryId: catMap['Education'], note: 'Online course', date: m(2, 15) },
+            { userId: user._id, accountId: hdfc._id, type: 'expense', amount: 3000, categoryId: catMap['Transport'], note: 'Fuel + metro', date: m(0, 10) }
         ]);
-        console.log('Created 20 sample transactions');
+        console.log('Created sample itemized & standard transactions');
 
         // Create sample credits
         await Credit.create([

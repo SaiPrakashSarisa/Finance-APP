@@ -1,11 +1,51 @@
 const mongoose = require('mongoose');
 const Transaction = require('../models/Transaction');
+const Merchant = require('../models/Merchant');
+const MasterItem = require('../models/MasterItem');
 const accountService = require('./accountService');
 const creditService = require('./creditService');
 const { runInTransaction } = require('../utils/dbSession');
 const cache = require('../utils/cache');
 
 const transactionService = {
+    // Helper to process merchant & master item records
+    async _processItemsAndMerchant(data, session = null) {
+        if (data.merchantName && data.merchantName.trim()) {
+            const trimmedName = data.merchantName.trim();
+            const options = { upsert: true, new: true, runValidators: true };
+            if (session) options.session = session;
+            const merchant = await Merchant.findOneAndUpdate(
+                { userId: data.userId, name: trimmedName },
+                { $inc: { transactionCount: 1 } },
+                options
+            );
+            if (merchant) data.merchantId = merchant._id;
+        }
+
+        if (Array.isArray(data.items) && data.items.length > 0) {
+            data.isItemized = true;
+            for (const item of data.items) {
+                if (item.totalPrice === undefined || item.totalPrice === null) {
+                    item.totalPrice = (item.quantity || 1) * (item.unitPrice || 0) - (item.discount || 0);
+                }
+                if (item.name && item.name.trim()) {
+                    const trimmedItem = item.name.trim();
+                    const options = { upsert: true, new: true };
+                    if (session) options.session = session;
+                    const master = await MasterItem.findOneAndUpdate(
+                        { userId: data.userId, name: trimmedItem },
+                        { 
+                            $set: { lastUnitPrice: item.unitPrice, defaultUnit: item.unit || 'unit' },
+                            $inc: { purchaseCount: 1 }
+                        },
+                        options
+                    );
+                    if (master) item.masterItemId = master._id;
+                }
+            }
+        }
+    },
+
     // Get transactions with filters
     async getAll(userId, filters = {}) {
         const query = { userId };
@@ -19,6 +59,7 @@ const transactionService = {
         if (filters.type) query.type = filters.type;
         if (filters.categoryId) query.categoryId = filters.categoryId;
         if (filters.creditId) query.creditId = filters.creditId;
+        if (filters.merchantId) query.merchantId = filters.merchantId;
 
         if (filters.startDate || filters.endDate) {
             query.date = {};
@@ -42,6 +83,7 @@ const transactionService = {
                 .populate('toAccountId', 'name type')
                 .populate('categoryId', 'name color icon type')
                 .populate('creditId', 'personName type subType amount remainingAmount status')
+                .populate('merchantId', 'name icon')
                 .sort({ date: -1, createdAt: -1 })
                 .skip(skip)
                 .limit(limit),
@@ -57,7 +99,8 @@ const transactionService = {
             .populate('accountId', 'name type')
             .populate('toAccountId', 'name type')
             .populate('categoryId', 'name color icon type')
-            .populate('creditId', 'personName type subType amount remainingAmount status');
+            .populate('creditId', 'personName type subType amount remainingAmount status')
+            .populate('merchantId', 'name icon');
     },
 
     // Helper: apply balance effect for a transaction
@@ -95,6 +138,9 @@ const transactionService = {
     // Create transaction and update balance
     async create(data) {
         return runInTransaction(async (session) => {
+            // Process Merchant & Items
+            await this._processItemsAndMerchant(data, session);
+
             // Handle credit_repay: validate and apply repayment
             if (data.type === 'credit_repay') {
                 if (!data.creditId) throw new Error('Credit entry is required for repayment');
@@ -115,6 +161,7 @@ const transactionService = {
                 .populate('toAccountId', 'name type')
                 .populate('categoryId', 'name color icon type')
                 .populate('creditId', 'personName type subType amount remainingAmount status')
+                .populate('merchantId', 'name icon')
                 .session(session);
         });
     },
@@ -134,7 +181,10 @@ const transactionService = {
             }
 
             // 3. Apply allowed updates
-            const allowed = ['type', 'amount', 'accountId', 'toAccountId', 'categoryId', 'creditId', 'note', 'date'];
+            updates.userId = userId;
+            await this._processItemsAndMerchant(updates, session);
+
+            const allowed = ['type', 'amount', 'accountId', 'toAccountId', 'categoryId', 'creditId', 'note', 'date', 'merchantId', 'merchantName', 'isItemized', 'items'];
             allowed.forEach(field => {
                 if (updates[field] !== undefined) existing[field] = updates[field];
             });
@@ -159,6 +209,7 @@ const transactionService = {
                 .populate('toAccountId', 'name type')
                 .populate('categoryId', 'name color icon type')
                 .populate('creditId', 'personName type subType amount remainingAmount status')
+                .populate('merchantId', 'name icon')
                 .session(session);
         });
     },

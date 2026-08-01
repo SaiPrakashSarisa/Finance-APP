@@ -52,6 +52,62 @@ const transactionSchema = new mongoose.Schema({
         ref: 'Credit',
         default: null
     },
+    merchantId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Merchant',
+        default: null
+    },
+    merchantName: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+    isItemized: {
+        type: Boolean,
+        default: false
+    },
+    items: [{
+        masterItemId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'MasterItem',
+            default: null
+        },
+        name: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        categoryId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Category',
+            default: null
+        },
+        quantity: {
+            type: Number,
+            required: true,
+            default: 1,
+            min: 0.001
+        },
+        unit: {
+            type: String,
+            default: 'unit',
+            trim: true
+        },
+        unitPrice: {
+            type: Number,
+            required: true,
+            min: 0
+        },
+        totalPrice: {
+            type: Number,
+            required: true,
+            min: 0
+        },
+        discount: {
+            type: Number,
+            default: 0
+        }
+    }],
     createdAt: {
         type: Date,
         default: Date.now
@@ -62,6 +118,8 @@ transactionSchema.index({ userId: 1, date: -1 });
 transactionSchema.index({ userId: 1, accountId: 1, date: -1 });
 transactionSchema.index({ userId: 1, type: 1, date: -1 });
 transactionSchema.index({ userId: 1, creditId: 1 });
+transactionSchema.index({ userId: 1, merchantId: 1, date: -1 });
+transactionSchema.index({ userId: 1, "items.name": 1, date: -1 });
 transactionSchema.index({ accountId: 1 });
 
 // Validate toAccountId for transfers

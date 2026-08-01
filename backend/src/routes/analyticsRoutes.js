@@ -6,5 +6,7 @@ router.get('/dashboard', analyticsController.getDashboard);
 router.get('/categories', analyticsController.getCategoryBreakdown);
 router.get('/monthly-trend', analyticsController.getMonthlyTrend);
 router.get('/insights', analyticsController.getInsights);
+router.get('/items/trends', analyticsController.getItemTrends);
+router.get('/inflation', analyticsController.getInflationTracker);
 
 module.exports = router;

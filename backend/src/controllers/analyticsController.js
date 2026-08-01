@@ -41,6 +41,25 @@ const analyticsController = {
         } catch (error) {
             res.status(500).json({ success: false, error: error.message });
         }
+    },
+
+    async getItemTrends(req, res) {
+        try {
+            const itemName = req.query.name || req.query.itemName;
+            const data = await analyticsService.getItemTrends(req.userId, itemName);
+            res.json({ success: true, data });
+        } catch (error) {
+            res.status(400).json({ success: false, error: error.message });
+        }
+    },
+
+    async getInflationTracker(req, res) {
+        try {
+            const data = await analyticsService.getInflationTracker(req.userId);
+            res.json({ success: true, data });
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
     }
 };
 

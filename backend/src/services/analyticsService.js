@@ -261,6 +261,126 @@ const analyticsService = {
         cache.set(cacheKey, result, 600);
         return result;
     },
+
+    // Item price trend analytics
+    async getItemTrends(userId, itemName) {
+        if (!itemName) throw new Error('Item name is required for price trend query');
+        const regex = new RegExp(itemName.trim(), 'i');
+
+        const pipeline = [
+            {
+                $match: {
+                    userId: new mongoose.Types.ObjectId(userId),
+                    isItemized: true,
+                    'items.name': { $regex: regex }
+                }
+            },
+            { $unwind: '$items' },
+            {
+                $match: {
+                    'items.name': { $regex: regex }
+                }
+            },
+            {
+                $project: {
+                    date: 1,
+                    merchantName: 1,
+                    itemName: '$items.name',
+                    quantity: '$items.quantity',
+                    unit: '$items.unit',
+                    unitPrice: '$items.unitPrice',
+                    totalPrice: '$items.totalPrice'
+                }
+            },
+            { $sort: { date: 1 } }
+        ];
+
+        const records = await Transaction.aggregate(pipeline);
+
+        if (records.length === 0) {
+            return { itemName, history: [], minPrice: 0, maxPrice: 0, avgPrice: 0, priceChange: 0, inflationPercent: 0 };
+        }
+
+        const prices = records.map(r => r.unitPrice);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        const avgPrice = Math.round((prices.reduce((a, b) => a + b, 0) / prices.length) * 100) / 100;
+        
+        const firstPrice = records[0].unitPrice;
+        const latestPrice = records[records.length - 1].unitPrice;
+        const priceChange = latestPrice - firstPrice;
+        const inflationPercent = firstPrice > 0 ? Math.round(((latestPrice - firstPrice) / firstPrice * 100) * 100) / 100 : 0;
+
+        return {
+            itemName: records[0].itemName,
+            history: records,
+            minPrice,
+            maxPrice,
+            avgPrice,
+            firstPrice,
+            latestPrice,
+            priceChange,
+            inflationPercent
+        };
+    },
+
+    // Personal inflation tracker for recurring items
+    async getInflationTracker(userId) {
+        const pipeline = [
+            {
+                $match: {
+                    userId: new mongoose.Types.ObjectId(userId),
+                    isItemized: true
+                }
+            },
+            { $unwind: '$items' },
+            {
+                $sort: { date: 1 }
+            },
+            {
+                $group: {
+                    _id: { $toLower: '$items.name' },
+                    originalName: { $first: '$items.name' },
+                    unit: { $first: '$items.unit' },
+                    firstPurchaseDate: { $first: '$date' },
+                    lastPurchaseDate: { $last: '$date' },
+                    firstUnitPrice: { $first: '$items.unitPrice' },
+                    lastUnitPrice: { $last: '$items.unitPrice' },
+                    purchaseCount: { $sum: 1 }
+                }
+            },
+            { $match: { purchaseCount: { $gte: 2 } } }
+        ];
+
+        const items = await Transaction.aggregate(pipeline);
+
+        const tracker = items.map(item => {
+            const priceDiff = item.lastUnitPrice - item.firstUnitPrice;
+            const inflationPercent = item.firstUnitPrice > 0 
+                ? Math.round(((item.lastUnitPrice - item.firstUnitPrice) / item.firstUnitPrice * 100) * 100) / 100 
+                : 0;
+
+            return {
+                name: item.originalName,
+                unit: item.unit,
+                firstPrice: item.firstUnitPrice,
+                lastPrice: item.lastUnitPrice,
+                priceDiff,
+                inflationPercent,
+                purchaseCount: item.purchaseCount,
+                firstDate: item.firstPurchaseDate,
+                lastDate: item.lastPurchaseDate
+            };
+        });
+
+        tracker.sort((a, b) => b.inflationPercent - a.inflationPercent);
+
+        const overallInflation = tracker.length > 0
+            ? Math.round((tracker.reduce((acc, i) => acc + i.inflationPercent, 0) / tracker.length) * 100) / 100
+            : 0;
+
+        return { overallInflation, items: tracker };
+    }
 };
 
 module.exports = analyticsService;

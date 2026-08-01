@@ -6,7 +6,7 @@ import {
     PiggyBank, TrendingDown, Flame, Award,
     ShieldAlert, HeartPulse,
 } from 'lucide-react';
-import { getInsights, getUserSettings } from '@/lib/api';
+import { getInsights, getUserSettings, getInflationTracker } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
 interface InsightCard {
@@ -29,17 +29,20 @@ const RANGE_LABELS: Record<string, string> = {
 export default function InsightsPage() {
     const [data, setData] = useState<any>(null);
     const [settings, setSettings] = useState<any>(null);
+    const [inflationData, setInflationData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         async function load() {
             try {
-                const [insRes, setRes] = await Promise.all([
+                const [insRes, setRes, infRes] = await Promise.all([
                     getInsights(),
-                    getUserSettings()
+                    getUserSettings(),
+                    getInflationTracker()
                 ]);
                 setData(insRes.data);
                 setSettings(setRes.data);
+                setInflationData(infRes.data);
             } catch (err) { console.error(err); }
             finally { setLoading(false); }
         }
@@ -119,10 +122,10 @@ export default function InsightsPage() {
     return (
         <div>
             <motion.h1 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="text-xl md:text-2xl lg:text-3xl font-bold text-white mb-2">
-                Smart Insights
+                Smart Insights & Item Inflation
             </motion.h1>
             <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="text-muted mb-8">
-                AI-powered analysis of your financial health for {rangeLabel}.
+                AI-powered financial analytics, burn rate, and product-level price inflation tracker.
             </motion.p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -148,6 +151,68 @@ export default function InsightsPage() {
                     );
                 })}
             </div>
+
+            {/* Item-Level Personal Inflation Tracker */}
+            {inflationData && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="glass-card p-4 md:p-6 mt-6 border-violet-500/30"
+                >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 border-b border-border/50 pb-3">
+                        <div>
+                            <h3 className="text-base md:text-lg font-bold text-white flex items-center gap-2">
+                                🛒 Personal Household Inflation Tracker
+                            </h3>
+                            <p className="text-xs text-muted">Tracking individual product unit price increases across shopping trips (e.g. D-Mart)</p>
+                        </div>
+                        <div className="self-start sm:self-auto bg-violet-500/10 border border-violet-500/30 px-3 py-1.5 rounded-xl text-right">
+                            <span className="text-[10px] text-muted block uppercase">Overall Personal Inflation</span>
+                            <span className={`text-lg font-extrabold ${inflationData.overallInflation > 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                {inflationData.overallInflation > 0 ? '+' : ''}{inflationData.overallInflation}%
+                            </span>
+                        </div>
+                    </div>
+
+                    {inflationData.items && inflationData.items.length > 0 ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                                <thead>
+                                    <tr className="border-b border-border/50 text-muted uppercase text-left">
+                                        <th className="py-2.5 px-3">Item Name</th>
+                                        <th className="py-2.5 px-3 text-center">Unit</th>
+                                        <th className="py-2.5 px-3 text-right">Baseline Price</th>
+                                        <th className="py-2.5 px-3 text-right">Latest Price</th>
+                                        <th className="py-2.5 px-3 text-right">Price Variance</th>
+                                        <th className="py-2.5 px-3 text-right">Inflation %</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {inflationData.items.map((item: any, idx: number) => (
+                                        <tr key={idx} className="border-b border-white/5 hover:bg-white/[0.02]">
+                                            <td className="py-2.5 px-3 font-semibold text-white">{item.name}</td>
+                                            <td className="py-2.5 px-3 text-center text-slate-400">{item.unit}</td>
+                                            <td className="py-2.5 px-3 text-right text-slate-300">{formatCurrency(item.firstPrice)}</td>
+                                            <td className="py-2.5 px-3 text-right font-semibold text-white">{formatCurrency(item.lastPrice)}</td>
+                                            <td className={`py-2.5 px-3 text-right font-medium ${item.priceDiff > 0 ? 'text-rose-400' : item.priceDiff < 0 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                                {item.priceDiff > 0 ? '+' : ''}{formatCurrency(item.priceDiff)}
+                                            </td>
+                                            <td className="py-2.5 px-3 text-right">
+                                                <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold ${item.inflationPercent > 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : item.inflationPercent < 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-500/20 text-slate-400'}`}>
+                                                    {item.inflationPercent > 0 ? '+' : ''}{item.inflationPercent}%
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <p className="text-xs text-muted text-center py-4">No recurring itemized purchases found yet. Start itemizing your store receipts to track inflation!</p>
+                    )}
+                </motion.div>
+            )}
 
             {/* Quick Stats Bar */}
             <motion.div

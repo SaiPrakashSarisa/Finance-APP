@@ -1,5 +1,4 @@
-// const API_BASE = "http://localhost:5000/api";
-const API_BASE = "https://finance-app-axlj.onrender.com/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -93,6 +92,9 @@ export const getCategoryBreakdown = (month?: number, year?: number) => {
 };
 export const getMonthlyTrend = () => request<any>('/analytics/monthly-trend');
 export const getInsights = () => request<any>('/analytics/insights');
+export const getItemTrends = (itemName: string) =>
+  request<any>(`/analytics/items/trends?name=${encodeURIComponent(itemName)}`);
+export const getInflationTracker = () => request<any>('/analytics/inflation');
 
 // ── User Settings & Profile ──
 export const getUserSettings = () => request<any>('/user/settings');
