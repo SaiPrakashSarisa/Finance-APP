@@ -165,13 +165,19 @@ async function seedTestUser() {
                     { name: 'Onions', quantity: 3, unit: 'kg', unitPrice: 46.67, totalPrice: 140, categoryId: subGroceries._id }
                 ]
             },
-            // Income & Regular Expenses
+            // August Income & Regular Expenses
             { userId: user._id, accountId: hdfc._id, type: 'income', amount: 95000, categoryId: subPrimarySalary._id, note: 'Monthly Salary Credit', date: m(0, 1) },
             { userId: user._id, accountId: hdfc._id, type: 'income', amount: 25000, categoryId: subFreelance._id, note: 'Web App Consulting Project', date: m(0, 5) },
             { userId: user._id, accountId: sbi._id, type: 'income', amount: 4500, categoryId: subDividends._id, note: 'Quarterly Mutual Fund Dividend', date: m(0, 10) },
             { userId: user._id, accountId: hdfc._id, type: 'expense', amount: 22000, categoryId: subRent._id, note: 'Monthly Apartment Rent', date: m(0, 1) },
             { userId: user._id, accountId: sbi._id, type: 'expense', amount: 3400, categoryId: subElectricity._id, note: 'Electricity Bill', date: m(0, 8) },
             { userId: user._id, accountId: hdfc._id, type: 'expense', amount: 1199, categoryId: subWifi._id, note: 'JioFiber 300Mbps Plan', date: m(0, 10) },
+            
+            // July Recurring Subscriptions (triggers subscription detection)
+            { userId: user._id, accountId: hdfc._id, type: 'expense', amount: 22000, categoryId: subRent._id, note: 'Monthly Apartment Rent', date: m(1, 1) },
+            { userId: user._id, accountId: sbi._id, type: 'expense', amount: 3400, categoryId: subElectricity._id, note: 'Electricity Bill', date: m(1, 8) },
+            { userId: user._id, accountId: hdfc._id, type: 'expense', amount: 1199, categoryId: subWifi._id, note: 'JioFiber 300Mbps Plan', date: m(1, 10) },
+
             { userId: user._id, accountId: icici._id, type: 'expense', amount: 3500, categoryId: subFuel._id, merchantId: hpPump._id, merchantName: 'HP Fuel Station', note: 'Car Tank Full Petrol', date: m(0, 7) },
             { userId: user._id, accountId: icici._id, type: 'expense', amount: 6500, categoryId: subApparel._id, note: 'Nike Running Shoes', date: m(0, 12) },
             

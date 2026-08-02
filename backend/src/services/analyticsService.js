@@ -380,6 +380,115 @@ const analyticsService = {
             : 0;
 
         return { overallInflation, items: tracker };
+    },
+
+    // Merchant spending breakdown
+    async getMerchantAnalytics(userId) {
+        const pipeline = [
+            {
+                $match: {
+                    userId: new mongoose.Types.ObjectId(userId),
+                    type: 'expense',
+                    merchantName: { $ne: '' }
+                }
+            },
+            {
+                $group: {
+                    _id: '$merchantName',
+                    totalSpent: { $sum: '$amount' },
+                    transactionCount: { $sum: 1 },
+                    lastVisitDate: { $max: '$date' }
+                }
+            },
+            { $sort: { totalSpent: -1 } }
+        ];
+
+        const merchants = await Transaction.aggregate(pipeline);
+        return merchants;
+    },
+
+    // Merchant Item Price Comparison (e.g. comparing identical item across stores)
+    async getMerchantItemComparison(userId) {
+        const pipeline = [
+            {
+                $match: {
+                    userId: new mongoose.Types.ObjectId(userId),
+                    isItemized: true,
+                    merchantName: { $ne: '' }
+                }
+            },
+            { $unwind: '$items' },
+            {
+                $group: {
+                    _id: {
+                        itemName: { $toLower: '$items.name' },
+                        merchant: '$merchantName'
+                    },
+                    originalItemName: { $first: '$items.name' },
+                    merchantName: { $first: '$merchantName' },
+                    unit: { $first: '$items.unit' },
+                    latestUnitPrice: { $last: '$items.unitPrice' },
+                    avgUnitPrice: { $avg: '$items.unitPrice' },
+                    purchaseCount: { $sum: 1 }
+                }
+            },
+            {
+                $group: {
+                    _id: '$_id.itemName',
+                    itemName: { $first: '$originalItemName' },
+                    unit: { $first: '$unit' },
+                    merchants: {
+                        $push: {
+                            merchantName: '$merchantName',
+                            latestUnitPrice: '$latestUnitPrice',
+                            avgUnitPrice: { $round: ['$avgUnitPrice', 2] },
+                            purchaseCount: '$purchaseCount'
+                        }
+                    }
+                }
+            },
+            // Only keep items purchased at multiple merchants or multiple visits
+            { $match: { 'merchants.0': { $exists: true } } }
+        ];
+
+        const comparison = await Transaction.aggregate(pipeline);
+        return comparison;
+    },
+
+    // Detect Subscriptions & Recurring Monthly Bills
+    async getSubscriptions(userId) {
+        const pipeline = [
+            {
+                $match: {
+                    userId: new mongoose.Types.ObjectId(userId),
+                    type: 'expense'
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        note: { $toLower: '$note' },
+                        amount: '$amount'
+                    },
+                    originalNote: { $first: '$note' },
+                    amount: { $first: '$amount' },
+                    category: { $first: '$categoryId' },
+                    count: { $sum: 1 },
+                    dates: { $push: '$date' }
+                }
+            },
+            { $match: { count: { $gte: 2 } } },
+            { $sort: { amount: -1 } }
+        ];
+
+        const subscriptions = await Transaction.aggregate(pipeline);
+        return subscriptions.map(s => ({
+            name: s.originalNote || 'Recurring Bill',
+            amount: s.amount,
+            frequency: 'Monthly',
+            occurrences: s.count,
+            lastDate: s.dates[s.dates.length - 1]
+        }));
     }
 };
 

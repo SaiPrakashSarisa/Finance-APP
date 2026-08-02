@@ -95,6 +95,9 @@ export const getInsights = () => request<any>('/analytics/insights');
 export const getItemTrends = (itemName: string) =>
   request<any>(`/analytics/items/trends?name=${encodeURIComponent(itemName)}`);
 export const getInflationTracker = () => request<any>('/analytics/inflation');
+export const getMerchantAnalytics = () => request<any>('/analytics/merchants');
+export const getMerchantItemComparison = () => request<any>('/analytics/merchants/compare');
+export const getSubscriptions = () => request<any>('/analytics/subscriptions');
 
 // ── User Settings & Profile ──
 export const getUserSettings = () => request<any>('/user/settings');

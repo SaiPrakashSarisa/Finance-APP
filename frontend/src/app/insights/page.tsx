@@ -4,9 +4,9 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
     PiggyBank, TrendingDown, Flame, Award,
-    ShieldAlert, HeartPulse,
+    ShieldAlert, HeartPulse, Store, Repeat, ShoppingBag
 } from 'lucide-react';
-import { getInsights, getUserSettings, getInflationTracker } from '@/lib/api';
+import { getInsights, getUserSettings, getInflationTracker, getMerchantAnalytics, getMerchantItemComparison, getSubscriptions } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
 interface InsightCard {
@@ -30,19 +30,28 @@ export default function InsightsPage() {
     const [data, setData] = useState<any>(null);
     const [settings, setSettings] = useState<any>(null);
     const [inflationData, setInflationData] = useState<any>(null);
+    const [merchantsData, setMerchantsData] = useState<any[]>([]);
+    const [merchantCompareData, setMerchantCompareData] = useState<any[]>([]);
+    const [subscriptionsData, setSubscriptionsData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         async function load() {
             try {
-                const [insRes, setRes, infRes] = await Promise.all([
+                const [insRes, setRes, infRes, merchRes, compRes, subRes] = await Promise.all([
                     getInsights(),
                     getUserSettings(),
-                    getInflationTracker()
+                    getInflationTracker(),
+                    getMerchantAnalytics(),
+                    getMerchantItemComparison(),
+                    getSubscriptions()
                 ]);
                 setData(insRes.data);
                 setSettings(setRes.data);
                 setInflationData(infRes.data);
+                setMerchantsData(merchRes.data || []);
+                setMerchantCompareData(compRes.data || []);
+                setSubscriptionsData(subRes.data || []);
             } catch (err) { console.error(err); }
             finally { setLoading(false); }
         }
@@ -213,6 +222,78 @@ export default function InsightsPage() {
                     )}
                 </motion.div>
             )}
+
+            {/* Subscriptions & Recurring Bills Section */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="glass-card p-4 md:p-6 mt-4 md:mt-6"
+            >
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400">
+                        <Repeat className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h3 className="text-sm md:text-base font-bold text-white">Detected Subscriptions & Recurring Bills</h3>
+                        <p className="text-xs text-muted">Automatically detected recurring monthly expenses & obligations</p>
+                    </div>
+                </div>
+
+                {subscriptionsData.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {subscriptionsData.map((sub, i) => (
+                            <div key={i} className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-semibold text-white capitalize">{sub.name}</p>
+                                    <p className="text-xs text-slate-400 mt-0.5">{sub.frequency} • {sub.occurrences} payments detected</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm font-bold text-cyan-400">{formatCurrency(sub.amount)}</p>
+                                    <span className="inline-block mt-1 px-1.5 py-0.5 text-[10px] font-medium bg-cyan-500/20 text-cyan-300 rounded">Active</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-xs text-muted text-center py-4">No recurring bills detected yet.</p>
+                )}
+            </motion.div>
+
+            {/* Merchant Spending & Store Analytics */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.45 }}
+                className="glass-card p-4 md:p-6 mt-4 md:mt-6"
+            >
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+                        <Store className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <h3 className="text-sm md:text-base font-bold text-white">Top Merchants & Store Spending</h3>
+                        <p className="text-xs text-muted">Total spending breakdown across your favorite stores & supermarkets</p>
+                    </div>
+                </div>
+
+                {merchantsData.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {merchantsData.map((merch, i) => (
+                            <div key={i} className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 text-center">
+                                <div className="w-10 h-10 mx-auto rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center mb-2 font-bold">
+                                    🏪
+                                </div>
+                                <h4 className="text-sm font-bold text-white truncate">{merch._id}</h4>
+                                <p className="text-xs text-slate-400 mt-0.5">{merch.transactionCount} visit{merch.transactionCount > 1 ? 's' : ''}</p>
+                                <p className="text-sm font-bold text-amber-400 mt-1">{formatCurrency(merch.totalSpent)}</p>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-xs text-muted text-center py-4">No merchant transactions recorded yet.</p>
+                )}
+            </motion.div>
 
             {/* Quick Stats Bar */}
             <motion.div

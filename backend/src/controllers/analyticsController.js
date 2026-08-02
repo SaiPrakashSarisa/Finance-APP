@@ -60,6 +60,33 @@ const analyticsController = {
         } catch (error) {
             res.status(500).json({ success: false, error: error.message });
         }
+    },
+
+    async getMerchantAnalytics(req, res) {
+        try {
+            const data = await analyticsService.getMerchantAnalytics(req.userId);
+            res.json({ success: true, data });
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    },
+
+    async getMerchantItemComparison(req, res) {
+        try {
+            const data = await analyticsService.getMerchantItemComparison(req.userId);
+            res.json({ success: true, data });
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    },
+
+    async getSubscriptions(req, res) {
+        try {
+            const data = await analyticsService.getSubscriptions(req.userId);
+            res.json({ success: true, data });
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
     }
 };
 
