@@ -242,61 +242,6 @@ const transactionService = {
 
             return transaction;
         });
-    },
-
-    // Export all user transactions to standard CSV format
-    async exportCSV(userId) {
-        const transactions = await Transaction.find({ userId })
-            .populate('accountId', 'name')
-            .populate({
-                path: 'categoryId',
-                select: 'name parentCategoryId',
-                populate: { path: 'parentCategoryId', select: 'name' }
-            })
-            .sort({ date: -1 });
-
-        const headers = ['Transaction ID', 'Date', 'Type', 'Amount', 'Account', 'Merchant', 'Parent Category', 'Sub Category', 'Note', 'Is Itemized', 'Line Items Summary'];
-        
-        const rows = transactions.map(t => {
-            const dateStr = t.date ? new Date(t.date).toISOString().split('T')[0] : '';
-            const accName = t.accountId ? t.accountId.name : '';
-            const merchName = t.merchantName || '';
-            
-            let parentCat = '';
-            let subCat = '';
-            if (t.categoryId) {
-                if (t.categoryId.parentCategoryId) {
-                    parentCat = t.categoryId.parentCategoryId.name;
-                    subCat = t.categoryId.name;
-                } else {
-                    parentCat = t.categoryId.name;
-                }
-            }
-
-            const isItemized = t.isItemized ? 'Yes' : 'No';
-            let lineItemsSummary = '';
-            if (t.items && t.items.length > 0) {
-                lineItemsSummary = t.items.map(i => `${i.name} (${i.quantity}${i.unit} @ ₹${i.unitPrice})`).join('; ');
-            }
-
-            const cleanNote = (t.note || '').replace(/"/g, '""');
-
-            return [
-                t._id,
-                dateStr,
-                t.type,
-                t.amount,
-                `"${accName}"`,
-                `"${merchName}"`,
-                `"${parentCat}"`,
-                `"${subCat}"`,
-                `"${cleanNote}"`,
-                isItemized,
-                `"${lineItemsSummary.replace(/"/g, '""')}"`
-            ].join(',');
-        });
-
-        return [headers.join(','), ...rows].join('\n');
     }
 };
 

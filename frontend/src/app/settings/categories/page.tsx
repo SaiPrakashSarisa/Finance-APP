@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Pencil, Trash2, Tag, ArrowLeft, ChevronDown, ChevronRight, Download, Wand2, Sparkles } from 'lucide-react';
-import { getCategories, createCategory, updateCategory, deleteCategory, seedStandardCategories, migrateCategories, exportTransactionsCSV } from '@/lib/api';
+import { Plus, Pencil, Trash2, Tag, ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react';
+import { getCategories, createCategory, updateCategory, deleteCategory } from '@/lib/api';
 import { CATEGORY_TYPE_LABELS } from '@/lib/utils';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -14,75 +14,23 @@ const CATEGORY_TYPES = ['income', 'expense'];
 
 export default function CategoriesPage() {
     const [categories, setCategories] = useState<any[]>([]);
-    const [flatCategories, setFlatCategories] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
-    const [wizardOpen, setWizardOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<any>(null);
     const [expandedParents, setExpandedParents] = useState<string[]>([]);
     const [form, setForm] = useState({ name: '', type: 'expense', color: '#6366f1', icon: 'Tag', parentCategoryId: '' });
     const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
-    const [migrating, setMigrating] = useState(false);
-    const [mappings, setMappings] = useState<Record<string, string>>({});
-    const [purgeOld, setPurgeOld] = useState(true);
 
     const load = async () => {
         try {
-            const [treeRes, flatRes] = await Promise.all([
-                getCategories({ tree: 'true' }),
-                getCategories({})
-            ]);
-            setCategories(treeRes.data);
-            setFlatCategories(flatRes.data);
-            setExpandedParents(treeRes.data.map((c: any) => c._id));
+            const res = await getCategories({ tree: 'true' });
+            setCategories(res.data);
+            setExpandedParents(res.data.map((c: any) => c._id));
         } catch (err) {
             console.error(err);
         } finally {
             setLoading(false);
-        }
-    };
-
-    const handleSeedStandard = async () => {
-        try {
-            setLoading(true);
-            await seedStandardCategories();
-            await load();
-            alert('Standard categories hierarchy generated successfully!');
-        } catch (err: any) {
-            alert(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleOpenWizard = async () => {
-        await seedStandardCategories();
-        await load();
-        setWizardOpen(true);
-    };
-
-    const handleRunMigration = async () => {
-        if (migrating) return;
-        setMigrating(true);
-        try {
-            const mappingList = Object.entries(mappings)
-                .filter(([_, targetId]) => !!targetId)
-                .map(([oldId, targetId]) => ({ oldCategoryId: oldId, newCategoryId: targetId }));
-
-            if (mappingList.length === 0) {
-                alert('Please select at least one category mapping target.');
-                return;
-            }
-
-            const res = await migrateCategories({ mappings: mappingList, purgeOld });
-            alert(res.message);
-            setWizardOpen(false);
-            load();
-        } catch (err: any) {
-            alert(err.message);
-        } finally {
-            setMigrating(false);
         }
     };
 
@@ -153,20 +101,19 @@ export default function CategoriesPage() {
             load();
         } catch (err: any) {
             alert(err.message);
-            setDeleteTarget(null);
         }
     };
 
-    if (loading) {
+    const incomeCategories = categories.filter(c => c.type === 'income');
+    const expenseCategories = categories.filter(c => c.type === 'expense');
+
+    if (loading && categories.length === 0) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
                 <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
             </div>
         );
     }
-
-    const incomeCategories = categories.filter(c => c.type === 'income');
-    const expenseCategories = categories.filter(c => c.type === 'expense');
 
     return (
         <div className="max-w-4xl mx-auto pb-20">
@@ -176,7 +123,7 @@ export default function CategoriesPage() {
                 </Link>
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div className="flex items-center justify-between gap-4 mb-8">
                 <div>
                     <motion.h1
                         initial={{ opacity: 0, y: -10 }}
@@ -187,17 +134,9 @@ export default function CategoriesPage() {
                     </motion.h1>
                     <p className="text-xs md:text-sm text-muted mt-1">Manage your primary and sub-categories.</p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                    <button onClick={exportTransactionsCSV} className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 flex items-center gap-1.5 transition-all">
-                        <Download size={14} /> Export CSV
-                    </button>
-                    <button onClick={handleOpenWizard} className="px-3 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg flex items-center gap-1.5 transition-all">
-                        <Wand2 size={14} /> Re-organize Wizard
-                    </button>
-                    <button onClick={() => openCreate()} className="btn-primary flex items-center gap-2">
-                        <Plus size={16} /> Add Primary Category
-                    </button>
-                </div>
+                <button onClick={() => openCreate()} className="btn-primary flex items-center gap-2">
+                    <Plus size={16} /> Add Primary Category
+                </button>
             </div>
 
             <div className="space-y-12">
@@ -239,44 +178,44 @@ export default function CategoriesPage() {
                                             </button>
                                             <button
                                                 onClick={() => openEdit(cat)}
-                                                className="p-2 rounded-lg text-slate-500 hover:text-white hover:bg-white/10"
+                                                className="p-2 rounded-lg text-muted hover:text-white hover:bg-white/5 transition-colors"
                                             >
                                                 <Pencil size={16} />
                                             </button>
                                             <button
                                                 onClick={() => setDeleteTarget(cat._id)}
-                                                className="p-2 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10"
+                                                className="p-2 rounded-lg text-muted hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                                             >
                                                 <Trash2 size={16} />
                                             </button>
                                         </div>
                                     </div>
-                                    
-                                    {/* Subcategories */}
+
+                                    {/* Sub-categories */}
                                     <AnimatePresence>
                                         {expandedParents.includes(cat._id) && cat.subcategories?.length > 0 && (
-                                            <motion.div 
+                                            <motion.div
                                                 initial={{ height: 0, opacity: 0 }}
                                                 animate={{ height: 'auto', opacity: 1 }}
                                                 exit={{ height: 0, opacity: 0 }}
-                                                className="overflow-hidden pl-14 pr-2 space-y-2"
+                                                className="pl-6 md:pl-12 space-y-2 overflow-hidden"
                                             >
                                                 {cat.subcategories.map((sub: any) => (
-                                                    <div key={sub._id} className="bg-white/[0.03] border border-white/[0.05] rounded-xl p-3 flex items-center justify-between group">
+                                                    <div key={sub._id} className="glass-card p-3 flex items-center justify-between bg-white/[0.01]">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-1 h-1 rounded-full bg-slate-600" />
-                                                            <span className="text-sm text-slate-300 font-medium">{sub.name}</span>
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-violet-400" />
+                                                            <span className="text-sm text-slate-200">{sub.name}</span>
                                                         </div>
-                                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <div className="flex items-center gap-1">
                                                             <button
                                                                 onClick={() => openEdit(sub)}
-                                                                className="p-1.5 rounded-lg text-slate-500 hover:text-white hover:bg-white/10"
+                                                                className="p-1.5 rounded-lg text-muted hover:text-white hover:bg-white/5 transition-colors"
                                                             >
                                                                 <Pencil size={14} />
                                                             </button>
                                                             <button
                                                                 onClick={() => setDeleteTarget(sub._id)}
-                                                                className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10"
+                                                                className="p-1.5 rounded-lg text-muted hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                                                             >
                                                                 <Trash2 size={14} />
                                                             </button>
@@ -293,39 +232,54 @@ export default function CategoriesPage() {
                 ))}
             </div>
 
-            <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingCategory ? 'Edit Category' : 'New Category'}>
-                <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                    {form.parentCategoryId && (
-                        <div className="bg-violet-500/10 border border-violet-500/20 rounded-lg p-3 text-xs text-violet-400">
-                             Adding subcategory to <strong>{categories.find(c => c._id === form.parentCategoryId)?.name}</strong>
-                        </div>
-                    )}
+            <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingCategory ? 'Edit Category' : 'Create Category'}>
+                <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-xs font-medium text-muted mb-1.5 lowercase tracking-wider uppercase">Category Name</label>
+                        <label className="block text-xs font-medium text-muted mb-1.5 uppercase tracking-widest">Category Type</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {CATEGORY_TYPES.map((t) => (
+                                <button
+                                    key={t}
+                                    type="button"
+                                    onClick={() => setForm({ ...form, type: t })}
+                                    className={`py-2 rounded-xl text-xs font-semibold uppercase tracking-wider border transition-all ${
+                                        form.type === t
+                                            ? 'bg-violet-600 border-violet-500 text-white shadow-lg'
+                                            : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10'
+                                    }`}
+                                >
+                                    {t}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-medium text-muted mb-1.5 uppercase tracking-widest">Name</label>
                         <input
                             className="input-dark"
-                            placeholder="e.g. Shopping"
                             value={form.name}
                             onChange={(e) => setForm({ ...form, name: e.target.value })}
+                            placeholder="Category Name"
                             required
                         />
                     </div>
-                    
-                    {/* Only show type and color for primary categories */}
+
+                    <div>
+                        <label className="block text-xs font-medium text-muted mb-1.5 uppercase tracking-widest">Parent Category (Optional)</label>
+                        <Select
+                            options={categories.filter(c => !c.parentCategoryId && c.type === form.type && c._id !== editingCategory?._id).map((c) => ({
+                                label: c.name,
+                                value: c._id
+                            }))}
+                            value={form.parentCategoryId}
+                            onChange={(val) => setForm({ ...form, parentCategoryId: val })}
+                            placeholder="None (Make it a Primary Category)"
+                        />
+                    </div>
+
                     {!form.parentCategoryId && (
                         <>
-                            <div>
-                                <label className="block text-xs font-medium text-muted mb-1.5 uppercase tracking-widest">Type</label>
-                                <Select
-                                    options={CATEGORY_TYPES.map((t) => ({
-                                        label: CATEGORY_TYPE_LABELS[t],
-                                        value: t
-                                    }))}
-                                    value={form.type}
-                                    onChange={(val) => setForm({ ...form, type: val })}
-                                    disabled={!!editingCategory && editingCategory.subcategories?.length > 0}
-                                />
-                            </div>
                             <div>
                                 <label className="block text-xs font-medium text-muted mb-1.5 uppercase tracking-widest">Color</label>
                                 <div className="flex gap-3 items-center">
@@ -355,75 +309,6 @@ export default function CategoriesPage() {
                         </button>
                     </div>
                 </form>
-            </Modal>
-
-            {/* 1-Click Category Re-organization Wizard Modal */}
-            <Modal isOpen={wizardOpen} onClose={() => setWizardOpen(false)} title="1-Click Category Re-organization Wizard">
-                <div className="space-y-4">
-                    <div className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-xl text-xs text-violet-300">
-                        <div className="flex items-center gap-1.5 font-bold mb-1">
-                            <Sparkles className="w-4 h-4 text-violet-400" /> Standard Category Remapping
-                        </div>
-                        Map your existing categories to the newly generated standard parent and sub-categories. Your transactions and history will be cleanly re-mapped without losing any records!
-                    </div>
-
-                    <div className="max-h-[50vh] overflow-y-auto space-y-3 pr-1">
-                        {flatCategories.map((oldCat: any) => (
-                            <div key={oldCat._id} className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <div>
-                                    <p className="text-sm font-semibold text-white">{oldCat.name}</p>
-                                    <p className="text-[11px] text-muted">{oldCat.parentCategoryId ? 'Sub-category' : 'Primary Category'}</p>
-                                </div>
-                                <div className="w-full sm:w-64">
-                                    <select
-                                        className="input-dark text-xs py-1.5"
-                                        value={mappings[oldCat._id] || ''}
-                                        onChange={(e) => setMappings({ ...mappings, [oldCat._id]: e.target.value })}
-                                    >
-                                        <option value="">-- Keep / Skip --</option>
-                                        {flatCategories.map((newCat: any) => (
-                                            <option key={newCat._id} value={newCat._id}>
-                                                {newCat.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-2">
-                        <input
-                            type="checkbox"
-                            id="purgeOld"
-                            checked={purgeOld}
-                            onChange={(e) => setPurgeOld(e.target.checked)}
-                            className="rounded border-white/20 bg-slate-800 text-violet-600 focus:ring-violet-500"
-                        />
-                        <label htmlFor="purgeOld" className="text-xs text-slate-300">
-                            Delete unorganized legacy categories after migration
-                        </label>
-                    </div>
-
-                    <div className="flex gap-3 mt-4">
-                        <button
-                            type="button"
-                            onClick={handleRunMigration}
-                            disabled={migrating}
-                            className="btn-primary flex-1 disabled:opacity-50"
-                        >
-                            {migrating ? 'Migrating Transactions...' : 'Apply Migration & Update Database'}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setWizardOpen(false)}
-                            disabled={migrating}
-                            className="btn-ghost flex-1"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                </div>
             </Modal>
 
             <ConfirmDialog
