@@ -18,6 +18,14 @@ export default function BudgetsPage() {
     
     const [currentDate, setCurrentDate] = useState(new Date());
     const [form, setForm] = useState({ categoryId: '', amount: '', month: 0, year: 0 });
+    const [expandedBudgets, setExpandedBudgets] = useState<string[]>([]);
+
+    const toggleSubcategoryExpand = (e: React.MouseEvent, budgetId: string) => {
+        e.stopPropagation();
+        setExpandedBudgets(prev =>
+            prev.includes(budgetId) ? prev.filter(id => id !== budgetId) : [...prev, budgetId]
+        );
+    };
 
     const month = currentDate.getMonth() + 1;
     const year = currentDate.getFullYear();
@@ -220,14 +228,56 @@ export default function BudgetsPage() {
                                 />
                             </div>
                             
-                            <div className="mt-4 flex justify-between items-center opacity-40 group-hover:opacity-100 transition-opacity">
+                            <div className="mt-4 flex justify-between items-center text-xs">
                                 <p className="text-[10px] text-muted uppercase tracking-widest font-bold">
                                     {budget.remaining >= 0 
                                         ? `${formatCurrency(budget.remaining)} left` 
                                         : `${formatCurrency(Math.abs(budget.remaining))} over`}
                                 </p>
-                                <button className="text-[10px] text-violet-400 font-bold uppercase hover:underline">Edit Budget</button>
+                                
+                                {budget.subcategories && budget.subcategories.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => toggleSubcategoryExpand(e, budget._id)}
+                                        className="text-[11px] font-semibold text-violet-400 hover:text-violet-300 flex items-center gap-1 bg-violet-500/10 px-2 py-1 rounded-lg border border-violet-500/20"
+                                    >
+                                        {expandedBudgets.includes(budget._id) ? 'Hide Breakdown ▲' : 'Subcategories Breakdown ▼'}
+                                    </button>
+                                )}
                             </div>
+
+                            {/* Expandable Subcategories Progress Breakdown */}
+                            <AnimatePresence>
+                                {expandedBudgets.includes(budget._id) && budget.subcategories?.length > 0 && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        className="overflow-hidden mt-3 pt-3 border-t border-white/10 space-y-2.5"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Subcategory Progress Breakdown</p>
+                                        {budget.subcategories.map((sub: any) => (
+                                            <div key={sub._id} className="space-y-1">
+                                                <div className="flex justify-between items-center text-xs">
+                                                    <span className="text-slate-300 flex items-center gap-1.5 font-medium">
+                                                        <span>{sub.icon || '🏷️'}</span> {sub.name}
+                                                    </span>
+                                                    <span className="text-white font-semibold">
+                                                        {formatCurrency(sub.spent)} <span className="text-[10px] text-slate-400 font-normal">({sub.percentage}%)</span>
+                                                    </span>
+                                                </div>
+                                                <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className="h-full bg-violet-400/80 rounded-full"
+                                                        style={{ width: `${Math.min(sub.percentage, 100)}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
                         </motion.div>
                     ))}
                 </div>

@@ -10,6 +10,7 @@ const creditRoutes = require('./src/routes/creditRoutes');
 const analyticsRoutes = require('./src/routes/analyticsRoutes');
 const userRoutes = require('./src/routes/userRoutes');
 const budgetRoutes = require('./src/routes/budgetRoutes');
+const masterItemRoutes = require('./src/routes/masterItemRoutes');
 
 const cookieParser = require('cookie-parser');
 const authRoutes = require('./src/routes/authRoutes');
@@ -40,6 +41,7 @@ app.use('/api/credits', protect, creditRoutes);
 app.use('/api/analytics', protect, analyticsRoutes);
 app.use('/api/user', protect, userRoutes);
 app.use('/api/budgets', protect, budgetRoutes);
+app.use('/api/master-items', protect, masterItemRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

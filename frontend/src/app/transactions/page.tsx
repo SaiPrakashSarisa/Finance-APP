@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Pencil, Trash2, ArrowLeftRight, Filter, X } from 'lucide-react';
-import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getAccounts, getCategories, getCredits } from '@/lib/api';
+import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getAccounts, getCategories, getCredits, lookupMasterItem } from '@/lib/api';
 import { formatCurrency, formatDate, TRANSACTION_TYPE_COLORS } from '@/lib/utils';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -55,11 +55,13 @@ export default function TransactionsPage() {
         creditId: '',
         merchantName: '',
         isItemized: false,
-        items: [] as Array<{ name: string; quantity: number; unit: string; unitPrice: number; totalPrice: number }>,
+        useItemCategories: false,
+        items: [] as Array<{ name: string; mainCategoryId?: string; categoryId?: string; quantity: number; unit: string; unitPrice: number; totalPrice: number }>,
         note: '',
         date: new Date().toISOString().split('T')[0],
     };
     const [form, setForm] = useState(emptyForm);
+    const [showCustomCategories, setShowCustomCategories] = useState(false);
 
     const loadData = useCallback(async () => {
         try {
@@ -157,6 +159,7 @@ export default function TransactionsPage() {
             }
         }
 
+        setShowCustomCategories(!!(tx.items && tx.items.some((i: any) => !!i.categoryId)));
         setForm({
             type: tx.type,
             amount: String(tx.amount),
@@ -167,13 +170,31 @@ export default function TransactionsPage() {
             creditId: getId(tx.creditId),
             merchantName: tx.merchantName || (tx.merchantId?.name || ''),
             isItemized: !!tx.isItemized,
-            items: tx.items && tx.items.length > 0 ? tx.items.map((i: any) => ({
-                name: i.name || '',
-                quantity: i.quantity || 1,
-                unit: i.unit || 'unit',
-                unitPrice: i.unitPrice || 0,
-                totalPrice: i.totalPrice || ((i.quantity || 1) * (i.unitPrice || 0))
-            })) : [],
+            useItemCategories: !!(tx.items && tx.items.some((i: any) => !!i.categoryId)),
+            items: tx.items && tx.items.length > 0 ? tx.items.map((i: any) => {
+                const itemCatId = getId(i.categoryId);
+                const itemCat = categories.find(c => c._id === itemCatId);
+                let itemMainCat = '';
+                let itemSubCat = '';
+                if (itemCat) {
+                    if (itemCat.parentCategoryId) {
+                        itemMainCat = itemCat.parentCategoryId;
+                        itemSubCat = itemCatId;
+                    } else {
+                        itemMainCat = itemCatId;
+                        itemSubCat = '';
+                    }
+                }
+                return {
+                    name: i.name || '',
+                    mainCategoryId: itemMainCat,
+                    categoryId: itemSubCat,
+                    quantity: i.quantity || 1,
+                    unit: i.unit || 'unit',
+                    unitPrice: i.unitPrice || 0,
+                    totalPrice: i.totalPrice || ((i.quantity || 1) * (i.unitPrice || 0))
+                };
+            }) : [],
             note: tx.note || '',
             date: tx.date ? new Date(tx.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         });
@@ -207,6 +228,43 @@ export default function TransactionsPage() {
                 amount: totalSum > 0 ? String(totalSum) : prev.amount
             };
         });
+    };
+
+    const handleItemNameLookup = async (index: number, name: string) => {
+        if (!name || name.trim().length < 2) return;
+        try {
+            const res = await lookupMasterItem(name.trim());
+            if (res.data) {
+                setForm(prev => {
+                    const updatedItems = [...prev.items];
+                    const item = { ...updatedItems[index] };
+                    if (res.data.defaultCategoryId?._id) {
+                        const defCat = res.data.defaultCategoryId;
+                        if (defCat.parentCategoryId) {
+                            item.mainCategoryId = defCat.parentCategoryId;
+                            item.categoryId = defCat._id;
+                        } else {
+                            item.mainCategoryId = defCat._id;
+                            item.categoryId = '';
+                        }
+                    }
+                    if (res.data.lastUnitPrice && (!item.unitPrice || item.unitPrice === 0)) {
+                        item.unitPrice = res.data.lastUnitPrice;
+                        item.totalPrice = Math.round((item.quantity || 1) * res.data.lastUnitPrice * 100) / 100;
+                    }
+                    if (res.data.defaultUnit) {
+                        item.unit = res.data.defaultUnit;
+                    }
+                    updatedItems[index] = item;
+                    const totalSum = updatedItems.reduce((sum, i) => sum + (i.totalPrice || 0), 0);
+                    return {
+                        ...prev,
+                        items: updatedItems,
+                        amount: totalSum > 0 ? String(totalSum) : prev.amount
+                    };
+                });
+            }
+        } catch (e) {}
     };
 
     const removeItemRow = (index: number) => {
@@ -246,6 +304,7 @@ export default function TransactionsPage() {
                 data.isItemized = true;
                 data.items = form.items.filter(i => i.name.trim()).map(i => ({
                     name: i.name.trim(),
+                    categoryId: i.categoryId || i.mainCategoryId || null,
                     quantity: Number(i.quantity) || 1,
                     unit: i.unit || 'unit',
                     unitPrice: Number(i.unitPrice) || 0,
@@ -253,12 +312,15 @@ export default function TransactionsPage() {
                 }));
                 const sum = data.items.reduce((acc: number, item: any) => acc + item.totalPrice, 0);
                 if (sum > 0) data.amount = sum;
+
+                const firstCat = data.items.find((i: any) => i.categoryId)?.categoryId;
+                if (firstCat) data.categoryId = firstCat;
             } else {
                 data.isItemized = false;
                 data.items = [];
             }
 
-            if (form.type !== 'transfer' && form.type !== 'credit_repay') {
+            if (form.type !== 'transfer' && form.type !== 'credit_repay' && !data.categoryId) {
                 const finalCategoryId = form.categoryId || form.mainCategoryId;
                 if (finalCategoryId) data.categoryId = finalCategoryId;
             }
@@ -731,7 +793,7 @@ export default function TransactionsPage() {
                         </div>
                     )}
 
-                    {form.type !== 'transfer' && form.type !== 'credit_repay' && (
+                    {form.type !== 'transfer' && form.type !== 'credit_repay' && !form.isItemized && (
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="block text-xs font-medium text-muted mb-1.5">Category</label>
@@ -790,59 +852,113 @@ export default function TransactionsPage() {
                             />
 
                             {form.isItemized && (
-                                <div className="mt-3 pt-3 border-t border-border/40">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-xs font-semibold text-slate-300">Purchased Items</span>
+                                <div className="mt-3 pt-3 border-t border-border/40 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-semibold text-slate-300">Purchased Receipt Items</span>
                                         <button 
                                             type="button" 
                                             onClick={addItemRow}
-                                            className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1 font-medium"
+                                            className="text-xs text-violet-400 hover:text-violet-300 font-medium"
                                         >
-                                            + Add Item
+                                            + Add Product
                                         </button>
                                     </div>
-                                    <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+
+                                    <div className="flex flex-col gap-3 max-h-64 overflow-y-auto pr-1">
                                         {form.items.map((item, idx) => (
-                                            <div key={idx} className="grid grid-cols-12 gap-1.5 items-center text-xs bg-surface/80 p-2 rounded-lg border border-border/40">
-                                                <input 
-                                                    className="col-span-4 input-dark text-xs py-1 px-2" 
-                                                    placeholder="Item name (e.g. Rice)" 
-                                                    value={item.name}
-                                                    onChange={(e) => updateItemRow(idx, 'name', e.target.value)}
-                                                />
-                                                <input 
-                                                    className="col-span-2 input-dark text-xs py-1 px-1.5 text-center" 
-                                                    type="number" step="0.01" min="0.01" 
-                                                    placeholder="Qty" 
-                                                    value={item.quantity}
-                                                    onChange={(e) => updateItemRow(idx, 'quantity', e.target.value)}
-                                                />
-                                                <select 
-                                                    className="col-span-2 input-dark text-xs py-1 px-1 text-center"
-                                                    value={item.unit}
-                                                    onChange={(e) => updateItemRow(idx, 'unit', e.target.value)}
-                                                >
-                                                    <option value="kg">kg</option>
-                                                    <option value="L">L</option>
-                                                    <option value="pc">pc</option>
-                                                    <option value="g">g</option>
-                                                    <option value="ml">ml</option>
-                                                    <option value="unit">unit</option>
-                                                </select>
-                                                <input 
-                                                    className="col-span-3 input-dark text-xs py-1 px-1 text-right" 
-                                                    type="number" step="0.01" min="0" 
-                                                    placeholder="Unit ₹" 
-                                                    value={item.unitPrice || ''}
-                                                    onChange={(e) => updateItemRow(idx, 'unitPrice', e.target.value)}
-                                                />
-                                                <button 
-                                                    type="button" 
-                                                    onClick={() => removeItemRow(idx)}
-                                                    className="col-span-1 text-rose-400 hover:text-rose-300 text-center font-bold"
-                                                >
-                                                    ✕
-                                                </button>
+                                            <div key={idx} className="bg-white/[0.03] p-3 rounded-xl border border-white/10 space-y-2.5">
+                                                {/* Line 1: Item Name & Delete Button */}
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <input 
+                                                        className="input-dark text-xs flex-1 py-1.5 px-2.5 font-semibold text-white" 
+                                                        placeholder="Item name (e.g. Basmati Rice, Dove Soap)" 
+                                                        value={item.name}
+                                                        onChange={(e) => updateItemRow(idx, 'name', e.target.value)}
+                                                        onBlur={() => handleItemNameLookup(idx, item.name)}
+                                                    />
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => removeItemRow(idx)}
+                                                        className="text-rose-400 hover:text-rose-300 text-xs px-2 py-1 font-bold rounded-lg hover:bg-rose-500/10"
+                                                    >
+                                                        ✕ Remove
+                                                    </button>
+                                                </div>
+
+                                                {/* Line 2: Cascading Parent & Sub Category Selector */}
+                                                <div className="grid grid-cols-2 gap-2 bg-surface/40 p-2 rounded-lg border border-white/5">
+                                                    <div>
+                                                        <label className="block text-[10px] font-medium text-slate-400 mb-1">Main Category</label>
+                                                        <select
+                                                            className="input-dark text-xs py-1 px-2 w-full"
+                                                            value={item.mainCategoryId || ''}
+                                                            onChange={(e) => {
+                                                                updateItemRow(idx, 'mainCategoryId', e.target.value);
+                                                                updateItemRow(idx, 'categoryId', '');
+                                                            }}
+                                                        >
+                                                            <option value="">Select Main Category</option>
+                                                            {categories.filter(c => !c.parentCategoryId && c.type === form.type).map(c => (
+                                                                <option key={c._id} value={c._id}>{c.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-medium text-slate-400 mb-1">Sub Category</label>
+                                                        <select
+                                                            className="input-dark text-xs py-1 px-2 w-full disabled:opacity-40"
+                                                            value={item.categoryId || ''}
+                                                            onChange={(e) => updateItemRow(idx, 'categoryId', e.target.value)}
+                                                            disabled={!item.mainCategoryId}
+                                                        >
+                                                            <option value="">Optional Sub Category</option>
+                                                            {categories.filter(c => c.parentCategoryId === item.mainCategoryId).map(c => (
+                                                                <option key={c._id} value={c._id}>{c.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                {/* Line 3: Qty, Unit, Unit Price, Subtotal */}
+                                                <div className="grid grid-cols-12 gap-2 items-center text-xs pt-1">
+                                                    <div className="col-span-3 flex items-center gap-1">
+                                                        <span className="text-slate-400 text-[10px]">Qty:</span>
+                                                        <input 
+                                                            className="input-dark text-xs py-1 px-1 text-center w-full" 
+                                                            type="number" step="0.01" min="0.01" 
+                                                            value={item.quantity}
+                                                            onChange={(e) => updateItemRow(idx, 'quantity', e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-3 flex items-center gap-1">
+                                                        <span className="text-slate-400 text-[10px]">Unit:</span>
+                                                        <select 
+                                                            className="input-dark text-xs py-1 px-0.5 text-center w-full"
+                                                            value={item.unit}
+                                                            onChange={(e) => updateItemRow(idx, 'unit', e.target.value)}
+                                                        >
+                                                            <option value="kg">kg</option>
+                                                            <option value="L">L</option>
+                                                            <option value="pc">pc</option>
+                                                            <option value="g">g</option>
+                                                            <option value="ml">ml</option>
+                                                            <option value="unit">unit</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="col-span-3 flex items-center gap-1">
+                                                        <span className="text-slate-400 text-[10px]">Unit ₹:</span>
+                                                        <input 
+                                                            className="input-dark text-xs py-1 px-1.5 text-right w-full font-mono" 
+                                                            type="number" step="0.01" min="0" 
+                                                            placeholder="0.00" 
+                                                            value={item.unitPrice || ''}
+                                                            onChange={(e) => updateItemRow(idx, 'unitPrice', e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-3 text-right font-semibold text-emerald-400 text-xs">
+                                                        ₹{item.totalPrice ? item.totalPrice.toFixed(2) : '0.00'}
+                                                    </div>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>

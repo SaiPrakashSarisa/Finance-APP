@@ -21,22 +21,68 @@ const budgetService = {
             userId,
             type: 'expense',
             date: { $gte: startDate, $lte: endDate }
-        }).select('amount categoryId');
+        }).select('amount categoryId isItemized items');
+
+        // Build spending map per category ID (supporting line-item level category assignments)
+        const categorySpendingMap = {};
+        transactions.forEach(tx => {
+            if (tx.isItemized && Array.isArray(tx.items) && tx.items.length > 0) {
+                tx.items.forEach(item => {
+                    const catId = item.categoryId ? item.categoryId.toString() : (tx.categoryId ? tx.categoryId.toString() : null);
+                    if (catId) {
+                        const itemAmount = item.totalPrice !== undefined && item.totalPrice !== null 
+                            ? item.totalPrice 
+                            : ((item.quantity || 1) * (item.unitPrice || 0));
+                        categorySpendingMap[catId] = (categorySpendingMap[catId] || 0) + itemAmount;
+                    }
+                });
+            } else if (tx.categoryId) {
+                const catId = tx.categoryId.toString();
+                categorySpendingMap[catId] = (categorySpendingMap[catId] || 0) + tx.amount;
+            }
+        });
 
         const summary = budgets.map(budget => {
             const parentId = budget.categoryId._id.toString();
             
-            // Find all subcategory IDs for this parent
-            const subcategoryIds = allCategories
-                .filter(c => c.parentCategoryId && c.parentCategoryId.toString() === parentId)
-                .map(c => c._id.toString());
+            // Find all subcategories for this parent
+            const subcategories = allCategories
+                .filter(c => c.parentCategoryId && c.parentCategoryId.toString() === parentId);
             
+            const subcategoryIds = subcategories.map(c => c._id.toString());
             const targetIds = [parentId, ...subcategoryIds];
             
-            // Calculate spent amount by summing transactions in these categories
-            const spent = transactions
-                .filter(tx => tx.categoryId && targetIds.includes(tx.categoryId.toString()))
-                .reduce((sum, tx) => sum + tx.amount, 0);
+            // Calculate parent direct spent
+            const directParentSpent = categorySpendingMap[parentId] || 0;
+
+            // Calculate per-subcategory spent breakdown
+            const subcategoryBreakdown = subcategories.map(sub => {
+                const subSpent = categorySpendingMap[sub._id.toString()] || 0;
+                
+                return {
+                    _id: sub._id,
+                    name: sub.name,
+                    icon: sub.icon,
+                    color: sub.color,
+                    spent: subSpent,
+                    percentage: budget.amount > 0 ? Math.round((subSpent / budget.amount) * 100 * 10) / 10 : 0
+                };
+            });
+
+            // If there's direct parent spending not in a subcategory, add an entry for it
+            if (directParentSpent > 0) {
+                subcategoryBreakdown.unshift({
+                    _id: parentId,
+                    name: `${budget.categoryId.name} (General)`,
+                    icon: budget.categoryId.icon,
+                    color: budget.categoryId.color,
+                    spent: directParentSpent,
+                    percentage: budget.amount > 0 ? Math.round((directParentSpent / budget.amount) * 100 * 10) / 10 : 0
+                });
+            }
+
+            // Calculate total spent amount across parent and subcategories
+            const spent = targetIds.reduce((sum, id) => sum + (categorySpendingMap[id] || 0), 0);
 
             return {
                 _id: budget._id,
@@ -44,7 +90,8 @@ const budgetService = {
                 amount: budget.amount,
                 spent,
                 remaining: budget.amount - spent,
-                percentage: budget.amount > 0 ? (spent / budget.amount) * 100 : 0
+                percentage: budget.amount > 0 ? Math.round((spent / budget.amount) * 100 * 10) / 10 : 0,
+                subcategories: subcategoryBreakdown
             };
         });
 

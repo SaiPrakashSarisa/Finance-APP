@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Pencil, Trash2, Tag, ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react';
-import { getCategories, createCategory, updateCategory, deleteCategory } from '@/lib/api';
+import { Plus, Pencil, Trash2, Tag, ArrowLeft, ChevronDown, ChevronRight, Download, Wand2, Sparkles } from 'lucide-react';
+import { getCategories, createCategory, updateCategory, deleteCategory, seedStandardCategories, migrateCategories, exportTransactionsCSV } from '@/lib/api';
 import { CATEGORY_TYPE_LABELS } from '@/lib/utils';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -14,24 +14,75 @@ const CATEGORY_TYPES = ['income', 'expense'];
 
 export default function CategoriesPage() {
     const [categories, setCategories] = useState<any[]>([]);
+    const [flatCategories, setFlatCategories] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
+    const [wizardOpen, setWizardOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<any>(null);
     const [expandedParents, setExpandedParents] = useState<string[]>([]);
     const [form, setForm] = useState({ name: '', type: 'expense', color: '#6366f1', icon: 'Tag', parentCategoryId: '' });
     const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const [migrating, setMigrating] = useState(false);
+    const [mappings, setMappings] = useState<Record<string, string>>({});
+    const [purgeOld, setPurgeOld] = useState(true);
 
     const load = async () => {
         try {
-            const res = await getCategories({ tree: 'true' });
-            setCategories(res.data);
-            // Auto-expand all for now
-            setExpandedParents(res.data.map((c: any) => c._id));
+            const [treeRes, flatRes] = await Promise.all([
+                getCategories({ tree: 'true' }),
+                getCategories({})
+            ]);
+            setCategories(treeRes.data);
+            setFlatCategories(flatRes.data);
+            setExpandedParents(treeRes.data.map((c: any) => c._id));
         } catch (err) {
             console.error(err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSeedStandard = async () => {
+        try {
+            setLoading(true);
+            await seedStandardCategories();
+            await load();
+            alert('Standard categories hierarchy generated successfully!');
+        } catch (err: any) {
+            alert(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleOpenWizard = async () => {
+        await seedStandardCategories();
+        await load();
+        setWizardOpen(true);
+    };
+
+    const handleRunMigration = async () => {
+        if (migrating) return;
+        setMigrating(true);
+        try {
+            const mappingList = Object.entries(mappings)
+                .filter(([_, targetId]) => !!targetId)
+                .map(([oldId, targetId]) => ({ oldCategoryId: oldId, newCategoryId: targetId }));
+
+            if (mappingList.length === 0) {
+                alert('Please select at least one category mapping target.');
+                return;
+            }
+
+            const res = await migrateCategories({ mappings: mappingList, purgeOld });
+            alert(res.message);
+            setWizardOpen(false);
+            load();
+        } catch (err: any) {
+            alert(err.message);
+        } finally {
+            setMigrating(false);
         }
     };
 
@@ -136,9 +187,17 @@ export default function CategoriesPage() {
                     </motion.h1>
                     <p className="text-xs md:text-sm text-muted mt-1">Manage your primary and sub-categories.</p>
                 </div>
-                <button onClick={() => openCreate()} className="btn-primary flex items-center gap-2 self-start sm:self-auto">
-                    <Plus size={18} /> Add Primary Category
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                    <button onClick={exportTransactionsCSV} className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 flex items-center gap-1.5 transition-all">
+                        <Download size={14} /> Export CSV
+                    </button>
+                    <button onClick={handleOpenWizard} className="px-3 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white shadow-lg flex items-center gap-1.5 transition-all">
+                        <Wand2 size={14} /> Re-organize Wizard
+                    </button>
+                    <button onClick={() => openCreate()} className="btn-primary flex items-center gap-2">
+                        <Plus size={16} /> Add Primary Category
+                    </button>
+                </div>
             </div>
 
             <div className="space-y-12">
@@ -296,6 +355,75 @@ export default function CategoriesPage() {
                         </button>
                     </div>
                 </form>
+            </Modal>
+
+            {/* 1-Click Category Re-organization Wizard Modal */}
+            <Modal isOpen={wizardOpen} onClose={() => setWizardOpen(false)} title="1-Click Category Re-organization Wizard">
+                <div className="space-y-4">
+                    <div className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-xl text-xs text-violet-300">
+                        <div className="flex items-center gap-1.5 font-bold mb-1">
+                            <Sparkles className="w-4 h-4 text-violet-400" /> Standard Category Remapping
+                        </div>
+                        Map your existing categories to the newly generated standard parent and sub-categories. Your transactions and history will be cleanly re-mapped without losing any records!
+                    </div>
+
+                    <div className="max-h-[50vh] overflow-y-auto space-y-3 pr-1">
+                        {flatCategories.map((oldCat: any) => (
+                            <div key={oldCat._id} className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div>
+                                    <p className="text-sm font-semibold text-white">{oldCat.name}</p>
+                                    <p className="text-[11px] text-muted">{oldCat.parentCategoryId ? 'Sub-category' : 'Primary Category'}</p>
+                                </div>
+                                <div className="w-full sm:w-64">
+                                    <select
+                                        className="input-dark text-xs py-1.5"
+                                        value={mappings[oldCat._id] || ''}
+                                        onChange={(e) => setMappings({ ...mappings, [oldCat._id]: e.target.value })}
+                                    >
+                                        <option value="">-- Keep / Skip --</option>
+                                        {flatCategories.map((newCat: any) => (
+                                            <option key={newCat._id} value={newCat._id}>
+                                                {newCat.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-2">
+                        <input
+                            type="checkbox"
+                            id="purgeOld"
+                            checked={purgeOld}
+                            onChange={(e) => setPurgeOld(e.target.checked)}
+                            className="rounded border-white/20 bg-slate-800 text-violet-600 focus:ring-violet-500"
+                        />
+                        <label htmlFor="purgeOld" className="text-xs text-slate-300">
+                            Delete unorganized legacy categories after migration
+                        </label>
+                    </div>
+
+                    <div className="flex gap-3 mt-4">
+                        <button
+                            type="button"
+                            onClick={handleRunMigration}
+                            disabled={migrating}
+                            className="btn-primary flex-1 disabled:opacity-50"
+                        >
+                            {migrating ? 'Migrating Transactions...' : 'Apply Migration & Update Database'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setWizardOpen(false)}
+                            disabled={migrating}
+                            className="btn-ghost flex-1"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
             </Modal>
 
             <ConfirmDialog

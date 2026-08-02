@@ -98,6 +98,25 @@ export const getInflationTracker = () => request<any>('/analytics/inflation');
 export const getMerchantAnalytics = () => request<any>('/analytics/merchants');
 export const getMerchantItemComparison = () => request<any>('/analytics/merchants/compare');
 export const getSubscriptions = () => request<any>('/analytics/subscriptions');
+export const lookupMasterItem = (name: string) =>
+  request<any>(`/master-items/lookup?name=${encodeURIComponent(name)}`);
+
+// ── Category Migration & CSV Export ──
+export const seedStandardCategories = () => request<any>('/categories/seed-standard', { method: 'POST' });
+export const migrateCategories = (data: { mappings: any[]; purgeOld?: boolean }) =>
+  request<any>('/categories/migrate', { method: 'POST', body: JSON.stringify(data) });
+export const exportTransactionsCSV = async () => {
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  const res = await fetch(`${API_BASE}/transactions/export/csv`, { credentials: 'include' });
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `transactions_export_${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
 
 // ── User Settings & Profile ──
 export const getUserSettings = () => request<any>('/user/settings');
