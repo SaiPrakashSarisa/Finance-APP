@@ -138,16 +138,23 @@ const transactionService = {
     // Helper: apply balance effect for a transaction
     async _applyBalanceEffect(tx, multiplier = 1, session = null) {
         const amount = tx.amount * multiplier;
+        const meta = {
+            userId: tx.userId,
+            transactionId: tx._id,
+            type: multiplier < 0 ? 'reversal' : 'transaction',
+            description: `${multiplier < 0 ? 'Reversal: ' : ''}${tx.type.toUpperCase()} transaction`
+        };
+
         switch (tx.type) {
             case 'income':
-                await accountService.updateBalance(tx.accountId, amount, session);
+                await accountService.updateBalance(tx.accountId, amount, session, true, meta);
                 break;
             case 'expense':
-                await accountService.updateBalance(tx.accountId, -amount, session);
+                await accountService.updateBalance(tx.accountId, -amount, session, true, meta);
                 break;
             case 'transfer':
-                await accountService.updateBalance(tx.accountId, -amount, session);
-                await accountService.updateBalance(tx.toAccountId, amount, session);
+                await accountService.updateBalance(tx.accountId, -amount, session, true, { ...meta, description: 'Transfer Out' });
+                await accountService.updateBalance(tx.toAccountId, amount, session, true, { ...meta, description: 'Transfer In' });
                 break;
             case 'credit_repay':
                 if (tx.creditId && tx.accountId) {
@@ -155,11 +162,9 @@ const transactionService = {
                     const credit = await Credit.findById(typeof tx.creditId === 'object' && tx.creditId._id ? tx.creditId._id : tx.creditId).session(session);
                     if (credit) {
                         if (credit.type === 'given') {
-                            // Money coming back to you
-                            await accountService.updateBalance(tx.accountId, amount, session);
+                            await accountService.updateBalance(tx.accountId, amount, session, true, meta);
                         } else {
-                            // You're paying back
-                            await accountService.updateBalance(tx.accountId, -amount, session);
+                            await accountService.updateBalance(tx.accountId, -amount, session, true, meta);
                         }
                     }
                 }
@@ -198,18 +203,29 @@ const transactionService = {
         });
     },
 
-    // Update transaction: reverse old balance, apply edits, apply new balance
+    // Update transaction with Change Detection (Only modify balances if financial fields changed)
     async update(transactionId, userId, updates) {
         return runInTransaction(async (session) => {
             const existing = await Transaction.findOne({ _id: transactionId, userId }).session(session);
             if (!existing) throw new Error('Transaction not found');
 
-            // 1. Reverse old balance effect
-            await this._applyBalanceEffect(existing, -1, session);
+            const financialFieldsChanged = (
+                (updates.type !== undefined && updates.type !== existing.type) ||
+                (updates.amount !== undefined && Number(updates.amount) !== Number(existing.amount)) ||
+                (updates.accountId !== undefined && String(updates.accountId) !== String(existing.accountId)) ||
+                (updates.toAccountId !== undefined && String(updates.toAccountId) !== String(existing.toAccountId)) ||
+                (updates.isItemized !== undefined && updates.isItemized !== existing.isItemized) ||
+                (updates.items !== undefined && JSON.stringify(updates.items) !== JSON.stringify(existing.items))
+            );
 
-            // 2. Reverse old credit repayment if applicable
-            if (existing.type === 'credit_repay' && existing.creditId) {
-                await creditService.reverseRepayment(existing.creditId, userId, existing.amount, session);
+            if (financialFieldsChanged) {
+                // 1. Reverse old balance effect
+                await this._applyBalanceEffect(existing, -1, session);
+
+                // 2. Reverse old credit repayment if applicable
+                if (existing.type === 'credit_repay' && existing.creditId) {
+                    await creditService.reverseRepayment(existing.creditId, userId, existing.amount, session);
+                }
             }
 
             // 3. Apply allowed updates
@@ -232,13 +248,15 @@ const transactionService = {
 
             await existing.save({ session });
 
-            // 4. Apply new credit repayment if applicable
-            if (existing.type === 'credit_repay' && existing.creditId) {
-                await creditService.applyRepayment(existing.creditId, userId, existing.amount, session);
-            }
+            if (financialFieldsChanged) {
+                // 4. Apply new credit repayment if applicable
+                if (existing.type === 'credit_repay' && existing.creditId) {
+                    await creditService.applyRepayment(existing.creditId, userId, existing.amount, session);
+                }
 
-            // 5. Apply new balance effect
-            await this._applyBalanceEffect(existing, 1, session);
+                // 5. Apply new balance effect
+                await this._applyBalanceEffect(existing, 1, session);
+            }
 
             // Invalidate cache
             cache.clearUserCache(userId);

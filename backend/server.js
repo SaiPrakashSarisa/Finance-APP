@@ -20,6 +20,9 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/finance_app';
 
+const loggerMiddleware = require('./src/middlewares/loggerMiddleware');
+const errorHandler = require('./src/middlewares/errorHandler');
+
 // Middleware
 const allowedOrigins = [
     "http://localhost:3000",
@@ -31,6 +34,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(cookieParser());
+app.use(loggerMiddleware);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -48,11 +52,8 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date() });
 });
 
-// Error handler
-app.use((err, req, res, next) => {
-    console.error('Error:', err.message);
-    res.status(500).json({ success: false, error: err.message });
-});
+// Centralized error handler
+app.use(errorHandler);
 
 // Connect to MongoDB and start server
 mongoose.connect(MONGO_URI)
