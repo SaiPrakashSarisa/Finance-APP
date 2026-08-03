@@ -68,7 +68,25 @@ export default function TransactionsPage() {
     const [form, setForm] = useState(emptyForm);
     const [showCustomCategories, setShowCustomCategories] = useState(false);
 
-    const loadData = useCallback(async () => {
+    const categoriesRef = useRef(categories);
+    categoriesRef.current = categories;
+
+    const loadMetadata = useCallback(async () => {
+        try {
+            const [accRes, catRes, credRes] = await Promise.all([
+                getAccounts(),
+                getCategories(),
+                getCredits(),
+            ]);
+            setAccounts(accRes.data || []);
+            setCategories(catRes.data || []);
+            setCredits(credRes.data || []);
+        } catch (err) {
+            console.error(err);
+        }
+    }, []);
+
+    const loadTransactions = useCallback(async () => {
         try {
             const isAppending = isMobile && page > 1;
             if (isAppending) {
@@ -82,7 +100,7 @@ export default function TransactionsPage() {
             if (subCategoryFilter) {
                 params.categoryId = subCategoryFilter;
             } else if (mainCategoryFilter) {
-                const childIds = categories
+                const childIds = categoriesRef.current
                     .filter(c => c.parentCategoryId === mainCategoryFilter)
                     .map(c => c._id);
                 params.categoryId = [mainCategoryFilter, ...childIds].join(',');
@@ -94,28 +112,30 @@ export default function TransactionsPage() {
             params.page = String(page);
             params.limit = String(isMobile ? Math.max(limit, 50) : limit);
 
-            const [txRes, accRes, catRes, credRes] = await Promise.all([
-                getTransactions(Object.keys(params).length > 0 ? params : undefined),
-                getAccounts(),
-                getCategories(),
-                getCredits(),
-            ]);
+            const txRes = await getTransactions(Object.keys(params).length > 0 ? params : undefined);
 
             setTransactions(prev => isAppending ? [...prev, ...(txRes.transactions || [])] : (txRes.transactions || []));
             setTotalPages(txRes.pages || 1);
             setTotalItems(txRes.total || 0);
-            setAccounts(accRes.data);
-            setCategories(catRes.data);
-            setCredits(credRes.data);
         } catch (err) {
             console.error(err);
         } finally {
             setLoading(false);
             setLoadingMore(false);
         }
-    }, [typeFilter, accountFilter, mainCategoryFilter, subCategoryFilter, creditFilter, startDate, endDate, page, limit, isMobile, categories]);
+    }, [typeFilter, accountFilter, mainCategoryFilter, subCategoryFilter, creditFilter, startDate, endDate, page, limit, isMobile]);
 
-    useEffect(() => { loadData(); }, [loadData]);
+    const loadData = useCallback(async () => {
+        await Promise.all([loadMetadata(), loadTransactions()]);
+    }, [loadMetadata, loadTransactions]);
+
+    useEffect(() => {
+        loadMetadata();
+    }, [loadMetadata]);
+
+    useEffect(() => {
+        loadTransactions();
+    }, [loadTransactions]);
 
     useEffect(() => {
         const checkMobile = () => {
