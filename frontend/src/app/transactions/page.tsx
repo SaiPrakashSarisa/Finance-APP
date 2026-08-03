@@ -28,7 +28,8 @@ export default function TransactionsPage() {
     // Filters
     const [typeFilter, setTypeFilter] = useState<string>('all');
     const [accountFilter, setAccountFilter] = useState<string>('');
-    const [categoryFilter, setCategoryFilter] = useState<string>('');
+    const [mainCategoryFilter, setMainCategoryFilter] = useState<string>('');
+    const [subCategoryFilter, setSubCategoryFilter] = useState<string>('');
     const [creditFilter, setCreditFilter] = useState<string>('');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
@@ -73,7 +74,16 @@ export default function TransactionsPage() {
             const params: Record<string, string> = {};
             if (typeFilter !== 'all') params.type = typeFilter;
             if (accountFilter) params.accountId = accountFilter;
-            if (categoryFilter) params.categoryId = categoryFilter;
+            
+            if (subCategoryFilter) {
+                params.categoryId = subCategoryFilter;
+            } else if (mainCategoryFilter) {
+                const childIds = categories
+                    .filter(c => c.parentCategoryId === mainCategoryFilter)
+                    .map(c => c._id);
+                params.categoryId = [mainCategoryFilter, ...childIds].join(',');
+            }
+
             if (creditFilter) params.creditId = creditFilter;
             if (startDate) params.startDate = startDate;
             if (endDate) params.endDate = endDate;
@@ -99,7 +109,7 @@ export default function TransactionsPage() {
             setLoading(false);
             setLoadingMore(false);
         }
-    }, [typeFilter, accountFilter, categoryFilter, creditFilter, startDate, endDate, page, limit, isMobile]);
+    }, [typeFilter, accountFilter, mainCategoryFilter, subCategoryFilter, creditFilter, startDate, endDate, page, limit, isMobile, categories]);
 
     useEffect(() => { loadData(); }, [loadData]);
 
@@ -361,14 +371,15 @@ export default function TransactionsPage() {
     const clearFilters = () => {
         setTypeFilter('all');
         setAccountFilter('');
-        setCategoryFilter('');
+        setMainCategoryFilter('');
+        setSubCategoryFilter('');
         setCreditFilter('');
         setStartDate('');
         setEndDate('');
         setPage(1);
     };
 
-    const hasActiveFilters = typeFilter !== 'all' || accountFilter || categoryFilter || creditFilter || startDate || endDate;
+    const hasActiveFilters = typeFilter !== 'all' || accountFilter || mainCategoryFilter || subCategoryFilter || creditFilter || startDate || endDate;
 
     const getCreditLabel = (creditObj: any) => {
         if (!creditObj) return '—';
@@ -426,7 +437,19 @@ export default function TransactionsPage() {
                 {TYPE_TABS.map((tab) => (
                     <button
                         key={tab}
-                        onClick={() => { setTypeFilter(tab); setPage(1); }}
+                        onClick={() => {
+                            const newType = tab;
+                            setTypeFilter(newType);
+                            setPage(1);
+
+                            if (mainCategoryFilter && (newType === 'income' || newType === 'expense')) {
+                                const currentMain = categories.find(c => c._id === mainCategoryFilter);
+                                if (currentMain && currentMain.type !== newType) {
+                                    setMainCategoryFilter('');
+                                    setSubCategoryFilter('');
+                                }
+                            }
+                        }}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-all capitalize whitespace-nowrap ${typeFilter === tab
                             ? 'bg-violet-500/20 text-violet-400'
                             : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -445,7 +468,7 @@ export default function TransactionsPage() {
                     exit={{ opacity: 0, height: 0 }}
                     className="glass-card p-4 md:p-6 mb-4 md:mb-6"
                 >
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         <div>
                             <label className="block text-xs text-muted mb-1">Account</label>
                             <Select
@@ -458,14 +481,34 @@ export default function TransactionsPage() {
                             />
                         </div>
                         <div>
-                            <label className="block text-xs text-muted mb-1">Category</label>
+                            <label className="block text-xs text-muted mb-1">Main Category</label>
                             <Select
                                 options={[
-                                    { label: 'All Categories', value: '' },
-                                    ...categories.map((c) => ({ label: c.name, value: c._id })),
+                                    { label: 'All Main Categories', value: '' },
+                                    ...categories
+                                        .filter(c => !c.parentCategoryId && (typeFilter === 'all' || typeFilter === 'transfer' || typeFilter === 'credit_repay' || c.type === typeFilter))
+                                        .map((c) => ({ label: c.name, value: c._id })),
                                 ]}
-                                value={categoryFilter}
-                                onChange={(val) => { setCategoryFilter(val); setPage(1); }}
+                                value={mainCategoryFilter}
+                                onChange={(val) => {
+                                    setMainCategoryFilter(val);
+                                    setSubCategoryFilter('');
+                                    setPage(1);
+                                }}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-muted mb-1">Sub Category</label>
+                            <Select
+                                options={[
+                                    { label: mainCategoryFilter ? 'All Sub Categories' : 'Select Main Category first', value: '' },
+                                    ...categories
+                                        .filter(c => c.parentCategoryId === mainCategoryFilter)
+                                        .map((c) => ({ label: c.name, value: c._id })),
+                                ]}
+                                value={subCategoryFilter}
+                                onChange={(val) => { setSubCategoryFilter(val); setPage(1); }}
+                                disabled={!mainCategoryFilter}
                             />
                         </div>
                         <div>

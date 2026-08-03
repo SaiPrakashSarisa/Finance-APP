@@ -55,30 +55,55 @@ const transactionService = {
 
     // Get transactions with filters
     async getAll(userId, filters = {}) {
-        const query = { userId };
+        const conditions = [{ userId }];
 
         if (filters.accountId) {
-            query.$or = [
-                { accountId: filters.accountId },
-                { toAccountId: filters.accountId }
-            ];
+            conditions.push({
+                $or: [
+                    { accountId: filters.accountId },
+                    { toAccountId: filters.accountId }
+                ]
+            });
         }
-        if (filters.type) query.type = filters.type;
-        if (filters.categoryId) query.categoryId = filters.categoryId;
-        if (filters.creditId) query.creditId = filters.creditId;
-        if (filters.merchantId) query.merchantId = filters.merchantId;
+        if (filters.type) conditions.push({ type: filters.type });
+        if (filters.creditId) conditions.push({ creditId: filters.creditId });
+        if (filters.merchantId) conditions.push({ merchantId: filters.merchantId });
+
+        if (filters.categoryId) {
+            let catIds = [];
+            if (typeof filters.categoryId === 'string' && filters.categoryId.includes(',')) {
+                catIds = filters.categoryId.split(',').map(id => id.trim()).filter(Boolean);
+            } else if (Array.isArray(filters.categoryId)) {
+                catIds = filters.categoryId;
+            } else {
+                catIds = [filters.categoryId];
+            }
+
+            if (catIds.length > 0) {
+                conditions.push({
+                    $or: [
+                        { categoryId: { $in: catIds } },
+                        { 'items.categoryId': { $in: catIds } }
+                    ]
+                });
+            }
+        }
 
         if (filters.startDate || filters.endDate) {
-            query.date = {};
-            if (filters.startDate) query.date.$gte = new Date(filters.startDate);
-            if (filters.endDate) query.date.$lte = new Date(filters.endDate);
+            const dateObj = {};
+            if (filters.startDate) dateObj.$gte = new Date(filters.startDate);
+            if (filters.endDate) dateObj.$lte = new Date(filters.endDate);
+            conditions.push({ date: dateObj });
         }
 
         if (filters.minAmount || filters.maxAmount) {
-            query.amount = {};
-            if (filters.minAmount) query.amount.$gte = Number(filters.minAmount);
-            if (filters.maxAmount) query.amount.$lte = Number(filters.maxAmount);
+            const amountObj = {};
+            if (filters.minAmount) amountObj.$gte = Number(filters.minAmount);
+            if (filters.maxAmount) amountObj.$lte = Number(filters.maxAmount);
+            conditions.push({ amount: amountObj });
         }
+
+        const query = conditions.length === 1 ? conditions[0] : { $and: conditions };
 
         const page = parseInt(filters.page) || 1;
         const limit = parseInt(filters.limit) || 50;
