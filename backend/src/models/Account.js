@@ -26,6 +26,10 @@ const accountSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    initialBalance: {
+        type: Number,
+        default: 0
+    },
     currency: {
         type: String,
         default: 'INR',
@@ -43,13 +47,5 @@ const accountSchema = new mongoose.Schema({
 
 accountSchema.index({ userId: 1, isActive: 1 });
 accountSchema.index({ userId: 1, type: 1 });
-
-// Prevent negative balance for non-credit-card accounts
-accountSchema.pre('save', function (next) {
-    if (this.type !== 'credit_card' && this.balance < 0) {
-        return next(new Error('Negative balance is not allowed for non-credit-card accounts'));
-    }
-    next();
-});
 
 module.exports = mongoose.model('Account', accountSchema);

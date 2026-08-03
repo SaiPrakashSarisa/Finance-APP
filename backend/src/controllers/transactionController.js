@@ -58,6 +58,28 @@ const transactionController = {
         } catch (error) {
             res.status(400).json({ success: false, error: error.message });
         }
+    },
+
+    async exportCSV(req, res) {
+        try {
+            const csv = await transactionService.exportCSV(req.userId);
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename="transactions_export.csv"');
+            res.status(200).send(csv);
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
+    },
+
+    async importCSV(req, res) {
+        try {
+            const { csvText, mode } = req.body;
+            if (!csvText) return res.status(400).json({ success: false, error: 'csvText is required' });
+            const result = await transactionService.importCSV(req.userId, csvText, mode || 'replace');
+            res.json(result);
+        } catch (error) {
+            res.status(500).json({ success: false, error: error.message });
+        }
     }
 };
 

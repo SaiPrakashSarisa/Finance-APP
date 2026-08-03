@@ -223,6 +223,13 @@ const transactionService = {
             if (existing.type !== 'transfer') existing.toAccountId = null;
             if (existing.type === 'transfer') existing.categoryId = null;
             if (existing.type !== 'credit_repay') existing.creditId = null;
+
+            // Recalculate amount if itemized
+            if (existing.isItemized && Array.isArray(existing.items) && existing.items.length > 0) {
+                const itemSum = existing.items.reduce((sum, item) => sum + (Number(item.totalPrice) || 0), 0);
+                if (itemSum > 0) existing.amount = itemSum;
+            }
+
             await existing.save({ session });
 
             // 4. Apply new credit repayment if applicable
@@ -267,6 +274,252 @@ const transactionService = {
 
             return transaction;
         });
+    },
+
+    // Export all user transactions to standard CSV format
+    async exportCSV(userId) {
+        const transactions = await Transaction.find({ userId })
+            .populate('accountId', 'name')
+            .populate({
+                path: 'categoryId',
+                select: 'name parentCategoryId',
+                populate: { path: 'parentCategoryId', select: 'name' }
+            })
+            .sort({ date: -1 });
+
+        const headers = ['Transaction ID', 'Date', 'Type', 'Amount', 'Account', 'Merchant', 'Parent Category', 'Sub Category', 'Note', 'Is Itemized', 'Line Items Summary'];
+        
+        const rows = transactions.map(t => {
+            const dateStr = t.date ? new Date(t.date).toISOString().split('T')[0] : '';
+            const accName = t.accountId ? t.accountId.name : '';
+            const merchName = t.merchantName || '';
+            
+            let parentCat = '';
+            let subCat = '';
+            if (t.categoryId) {
+                if (t.categoryId.parentCategoryId) {
+                    parentCat = t.categoryId.parentCategoryId.name;
+                    subCat = t.categoryId.name;
+                } else {
+                    parentCat = t.categoryId.name;
+                }
+            }
+
+            const isItemized = t.isItemized ? 'Yes' : 'No';
+            let lineItemsSummary = '';
+            if (t.items && t.items.length > 0) {
+                lineItemsSummary = t.items.map(i => `${i.name} (${i.quantity}${i.unit || 'unit'} @ ₹${i.unitPrice || 0})`).join('; ');
+            }
+
+            const cleanNote = (t.note || '').replace(/"/g, '""');
+
+            return [
+                t._id,
+                dateStr,
+                t.type,
+                t.amount,
+                `"${accName.replace(/"/g, '""')}"`,
+                `"${merchName.replace(/"/g, '""')}"`,
+                `"${parentCat.replace(/"/g, '""')}"`,
+                `"${subCat.replace(/"/g, '""')}"`,
+                `"${cleanNote}"`,
+                isItemized,
+                `"${lineItemsSummary.replace(/"/g, '""')}"`
+            ].join(',');
+        });
+
+        return [headers.join(','), ...rows].join('\n');
+    },
+
+    // Import transactions from CSV backup and restore clean state
+    async importCSV(userId, csvText, mode = 'replace') {
+        const Account = require('../models/Account');
+        const Category = require('../models/Category');
+
+        const parseCSVLines = (text) => {
+            const lines = [];
+            let curLine = '';
+            let inQuotes = false;
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                    curLine += char;
+                } else if ((char === '\n' || char === '\r') && !inQuotes) {
+                    if (curLine.trim()) lines.push(curLine.trim());
+                    curLine = '';
+                    if (char === '\r' && text[i + 1] === '\n') i++;
+                } else {
+                    curLine += char;
+                }
+            }
+            if (curLine.trim()) lines.push(curLine.trim());
+            return lines;
+        };
+
+        const parseCSVRow = (line) => {
+            const result = [];
+            let curCell = '';
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') {
+                    if (inQuotes && line[i + 1] === '"') {
+                        curCell += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    result.push(curCell.trim());
+                    curCell = '';
+                } else {
+                    curCell += char;
+                }
+            }
+            result.push(curCell.trim());
+            return result;
+        };
+
+        const lines = parseCSVLines(csvText);
+        if (lines.length < 2) throw new Error('Invalid or empty CSV file');
+
+        const headerRow = parseCSVRow(lines[0]).map(h => h.toLowerCase());
+        
+        const dateIdx = headerRow.findIndex(h => h.includes('date'));
+        const typeIdx = headerRow.findIndex(h => h.includes('type'));
+        const amountIdx = headerRow.findIndex(h => h.includes('amount'));
+        const accountIdx = headerRow.findIndex(h => h.includes('account'));
+        const merchIdx = headerRow.findIndex(h => h.includes('merchant'));
+        const parentCatIdx = headerRow.findIndex(h => h.includes('parent category') || h === 'category');
+        const subCatIdx = headerRow.findIndex(h => h.includes('sub category'));
+        const noteIdx = headerRow.findIndex(h => h.includes('note'));
+        const itemsIdx = headerRow.findIndex(h => h.includes('line items') || h.includes('items'));
+
+        if (dateIdx === -1 || amountIdx === -1) {
+            throw new Error('CSV missing required headers: Date and Amount');
+        }
+
+        // If mode === 'replace', clean existing transactions & reset balances to initialBalance
+        if (mode === 'replace') {
+            await Transaction.deleteMany({ userId });
+            const existingAccs = await Account.find({ userId });
+            for (const acc of existingAccs) {
+                acc.balance = Number(acc.initialBalance) || 0;
+                await acc.save();
+            }
+        }
+
+        const userAccounts = await Account.find({ userId });
+        const accountMap = new Map();
+        userAccounts.forEach(a => accountMap.set(a.name.toLowerCase(), a));
+
+        const userCategories = await Category.find({ userId });
+        const categoryMap = new Map();
+        userCategories.forEach(c => categoryMap.set(c.name.toLowerCase(), c));
+
+        let createdCount = 0;
+
+        for (let i = 1; i < lines.length; i++) {
+            const row = parseCSVRow(lines[i]);
+            if (row.length === 0 || !row[amountIdx]) continue;
+
+            const dateStr = row[dateIdx] || new Date().toISOString();
+            const typeStr = (row[typeIdx] || 'expense').toLowerCase();
+            const amountVal = Math.abs(parseFloat(row[amountIdx])) || 0;
+            const accountName = row[accountIdx] || 'Default Account';
+            const merchName = merchIdx !== -1 ? row[merchIdx] : '';
+            const parentCatName = parentCatIdx !== -1 ? row[parentCatIdx] : '';
+            const subCatName = subCatIdx !== -1 ? row[subCatIdx] : '';
+            const noteStr = noteIdx !== -1 ? row[noteIdx] : '';
+            const itemsStr = itemsIdx !== -1 ? row[itemsIdx] : '';
+
+            // Match or create Account
+            let account = accountMap.get(accountName.toLowerCase());
+            if (!account) {
+                account = await Account.create({
+                    userId,
+                    name: accountName,
+                    type: 'savings',
+                    balance: 0
+                });
+                accountMap.set(accountName.toLowerCase(), account);
+            }
+
+            // Match or create Category (Parent & Subcategory)
+            let parentCategory = null;
+            if (parentCatName) {
+                parentCategory = categoryMap.get(parentCatName.toLowerCase());
+                if (!parentCategory) {
+                    parentCategory = await Category.create({
+                        userId,
+                        name: parentCatName,
+                        type: typeStr === 'income' ? 'income' : 'expense',
+                        color: '#6366f1'
+                    });
+                    categoryMap.set(parentCatName.toLowerCase(), parentCategory);
+                }
+            }
+
+            let targetCategory = null;
+            if (subCatName) {
+                targetCategory = categoryMap.get(subCatName.toLowerCase());
+                if (!targetCategory) {
+                    targetCategory = await Category.create({
+                        userId,
+                        name: subCatName,
+                        type: typeStr === 'income' ? 'income' : 'expense',
+                        color: '#6366f1',
+                        parentCategoryId: parentCategory ? parentCategory._id : undefined
+                    });
+                    categoryMap.set(subCatName.toLowerCase(), targetCategory);
+                }
+            } else if (parentCategory) {
+                targetCategory = parentCategory;
+            }
+
+            // Parse items summary if itemized
+            const parsedItems = [];
+            if (itemsStr) {
+                const parts = itemsStr.split(';');
+                for (const part of parts) {
+                    const trimmed = part.trim();
+                    if (!trimmed) continue;
+                    const match = trimmed.match(/^(.+?)\s*\(([\d.]+)([a-zA-Z]+)?\s*@\s*₹?([\d.]+)\)$/);
+                    if (match) {
+                        parsedItems.push({
+                            name: match[1].trim(),
+                            quantity: parseFloat(match[2]) || 1,
+                            unit: match[3] || 'unit',
+                            unitPrice: parseFloat(match[4]) || 0,
+                            totalPrice: (parseFloat(match[2]) || 1) * (parseFloat(match[4]) || 0)
+                        });
+                    } else {
+                        parsedItems.push({ name: trimmed, quantity: 1, unit: 'unit', unitPrice: amountVal, totalPrice: amountVal });
+                    }
+                }
+            }
+
+            const txData = {
+                userId,
+                accountId: account._id,
+                type: ['income', 'expense', 'transfer', 'credit_repay'].includes(typeStr) ? typeStr : 'expense',
+                amount: amountVal,
+                categoryId: targetCategory ? targetCategory._id : null,
+                merchantName: merchName || undefined,
+                note: noteStr || undefined,
+                isItemized: parsedItems.length > 0,
+                items: parsedItems,
+                date: new Date(dateStr)
+            };
+
+            await this.create(txData);
+            createdCount++;
+        }
+
+        cache.clearUserCache(userId);
+
+        return { success: true, count: createdCount, message: `Successfully restored ${createdCount} transactions from CSV backup` };
     }
 };
 

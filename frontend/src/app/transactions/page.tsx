@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Pencil, Trash2, ArrowLeftRight, Filter, X } from 'lucide-react';
-import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getAccounts, getCategories, getCredits, lookupMasterItem } from '@/lib/api';
+import { Plus, Pencil, Trash2, ArrowLeftRight, Filter, X, Download, Upload, RefreshCw } from 'lucide-react';
+import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getAccounts, getCategories, getCredits, lookupMasterItem, exportTransactionsCSV, importTransactionsCSV } from '@/lib/api';
 import { formatCurrency, formatDate, TRANSACTION_TYPE_COLORS } from '@/lib/utils';
 import Modal from '@/components/Modal';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -20,9 +20,13 @@ export default function TransactionsPage() {
     const [credits, setCredits] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [modalOpen, setModalOpen] = useState(false);
+    const [importModalOpen, setImportModalOpen] = useState(false);
     const [filterOpen, setFilterOpen] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const [importing, setImporting] = useState(false);
+    const [importMode, setImportMode] = useState<'replace' | 'append'>('replace');
+    const [csvFileText, setCsvFileText] = useState('');
     const [editingTransaction, setEditingTransaction] = useState<any>(null);
 
     // Filters
@@ -401,6 +405,36 @@ export default function TransactionsPage() {
         return categories.find((c) => c._id === idOrObj)?.name || '—';
     };
 
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const text = event.target?.result as string;
+            setCsvFileText(text);
+        };
+        reader.readAsText(file);
+    };
+
+    const handleRunImport = async () => {
+        if (!csvFileText || !csvFileText.trim()) {
+            alert('Please select a valid CSV backup file.');
+            return;
+        }
+        setImporting(true);
+        try {
+            const res = await importTransactionsCSV({ csvText: csvFileText, mode: importMode });
+            alert(res.message);
+            setImportModalOpen(false);
+            setCsvFileText('');
+            loadData();
+        } catch (err: any) {
+            alert(err.message || 'Import failed');
+        } finally {
+            setImporting(false);
+        }
+    };
+
     if (loading && !isMobile && page === 1) {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
@@ -419,15 +453,21 @@ export default function TransactionsPage() {
                 >
                     Transactions
                 </motion.h1>
-                <div className="flex gap-2 self-start sm:self-auto">
+                <div className="flex flex-wrap gap-2 self-start sm:self-auto">
+                    <button onClick={exportTransactionsCSV} className="btn-ghost flex items-center gap-1.5 text-xs">
+                        <Download size={14} /> Export CSV
+                    </button>
+                    <button onClick={() => setImportModalOpen(true)} className="px-3 py-2 rounded-xl text-xs font-semibold bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 flex items-center gap-1.5 transition-all">
+                        <Upload size={14} /> Import & Restore CSV
+                    </button>
                     <button
                         onClick={() => setFilterOpen(!filterOpen)}
-                        className={`btn-ghost flex items-center gap-2 ${hasActiveFilters ? 'border-violet-500 text-violet-400' : ''}`}
+                        className={`btn-ghost flex items-center gap-2 text-xs ${hasActiveFilters ? 'border-violet-500 text-violet-400' : ''}`}
                     >
-                        <Filter size={16} /> Filters {hasActiveFilters && '•'}
+                        <Filter size={14} /> Filters {hasActiveFilters && '•'}
                     </button>
-                    <button onClick={() => { setEditingTransaction(null); setForm(emptyForm); setModalOpen(true); }} className="btn-primary flex items-center gap-2">
-                        <Plus size={18} /> Add
+                    <button onClick={() => { setEditingTransaction(null); setForm(emptyForm); setModalOpen(true); }} className="btn-primary flex items-center gap-2 text-xs">
+                        <Plus size={16} /> Add
                     </button>
                 </div>
             </div>
@@ -1030,6 +1070,93 @@ export default function TransactionsPage() {
                         <button type="button" onClick={() => { setModalOpen(false); setEditingTransaction(null); }} disabled={submitting} className="btn-ghost flex-1">Cancel</button>
                     </div>
                 </form>
+            </Modal>
+
+            {/* Import CSV & Data Restore Modal */}
+            <Modal isOpen={importModalOpen} onClose={() => setImportModalOpen(false)} title="Import & Restore CSV Backup">
+                <div className="space-y-4">
+                    <div className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-xl text-xs text-violet-300">
+                        <p className="font-bold flex items-center gap-1.5 mb-1 text-violet-200">
+                            <Upload className="w-4 h-4 text-violet-400" /> Restore Transactions & Account Balances
+                        </p>
+                        Upload your exported CSV file backup. The system will parse your transactions, match categories and accounts, and recalculate your exact account balances.
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1.5">Select CSV Backup File</label>
+                        <input 
+                            type="file" 
+                            accept=".csv"
+                            onChange={handleFileUpload}
+                            className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-violet-600 file:text-white hover:file:bg-violet-500 cursor-pointer bg-white/5 p-2 rounded-xl border border-white/10"
+                        />
+                    </div>
+
+                    {csvFileText && (
+                        <div className="text-xs text-emerald-400 font-medium flex items-center gap-1.5">
+                            ✓ CSV Loaded ({csvFileText.split('\n').length - 1} rows detected)
+                        </div>
+                    )}
+
+                    <div className="space-y-2 pt-2 border-t border-white/10">
+                        <label className="block text-xs font-semibold text-slate-300">Restore Mode</label>
+                        <div className="space-y-2 text-xs">
+                            <label className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white/[0.03] border border-white/10 cursor-pointer">
+                                <input 
+                                    type="radio" 
+                                    name="importMode" 
+                                    value="replace" 
+                                    checked={importMode === 'replace'} 
+                                    onChange={() => setImportMode('replace')}
+                                    className="mt-0.5 text-violet-600 focus:ring-violet-500"
+                                />
+                                <div>
+                                    <span className="font-semibold text-white">Clean Restore from Backup (Recommended)</span>
+                                    <p className="text-slate-400 text-[11px] mt-0.5">Cleans out corrupted/duplicate transactions and re-creates clean history & exact account balances from CSV.</p>
+                                </div>
+                            </label>
+                            <label className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white/[0.03] border border-white/10 cursor-pointer">
+                                <input 
+                                    type="radio" 
+                                    name="importMode" 
+                                    value="append" 
+                                    checked={importMode === 'append'} 
+                                    onChange={() => setImportMode('append')}
+                                    className="mt-0.5 text-violet-600 focus:ring-violet-500"
+                                />
+                                <div>
+                                    <span className="font-semibold text-white">Append to Existing Transactions</span>
+                                    <p className="text-slate-400 text-[11px] mt-0.5">Imports CSV rows into your current database without deleting existing records.</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 mt-4">
+                        <button
+                            type="button"
+                            onClick={handleRunImport}
+                            disabled={importing || !csvFileText}
+                            className="btn-primary flex-1 disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                            {importing ? (
+                                <>
+                                    <RefreshCw className="w-4 h-4 animate-spin" /> Restoring Transactions...
+                                </>
+                            ) : (
+                                'Restore Transactions'
+                            )}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setImportModalOpen(false)}
+                            disabled={importing}
+                            className="btn-ghost flex-1"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
             </Modal>
 
             <ConfirmDialog

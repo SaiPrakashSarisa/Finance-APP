@@ -41,7 +41,7 @@ const accountService = {
     },
 
     // Update balance atomically
-    async updateBalance(accountId, amount, session = null) {
+    async updateBalance(accountId, amount, session = null, allowNegative = true) {
         const options = { new: true };
         if (session) options.session = session;
 
@@ -51,8 +51,7 @@ const accountService = {
             options
         );
 
-        // Check negative balance for non-credit-card
-        if (account && account.type !== 'credit_card' && account.balance < 0) {
+        if (!allowNegative && account && account.type !== 'credit_card' && account.balance < 0) {
             throw new Error(`Insufficient balance in account: ${account.name}`);
         }
 
