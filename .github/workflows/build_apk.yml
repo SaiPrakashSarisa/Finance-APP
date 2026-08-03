@@ -24,16 +24,11 @@ jobs:
         with:
           flutter-version: '3.19.6'
           channel: 'stable'
-          cache: true
 
-      - name: Install Dependencies
+      - name: Install Dependencies & Build Release APK
         run: |
           cd mobile
           flutter pub get
-
-      - name: Build Android Release APK
-        run: |
-          cd mobile
           flutter build apk --release --no-tree-shake-icons
 
       - name: Upload APK Artifact
