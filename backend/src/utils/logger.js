@@ -11,7 +11,7 @@ const config = require('../config');
 const sanitizeData = (data) => {
     if (!data || typeof data !== 'object') return data;
     const sanitized = { ...data };
-    const sensitiveKeys = ['password', 'passwordHash', 'token', 'refreshToken', 'authorization', 'secret'];
+    const sensitiveKeys = ['password', 'passwordhash', 'token', 'refreshtoken', 'authorization', 'secret', 'mpin', 'pin', 'jwt_token'];
     
     for (const key of Object.keys(sanitized)) {
         if (sensitiveKeys.includes(key.toLowerCase())) {

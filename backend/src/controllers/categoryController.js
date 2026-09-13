@@ -60,45 +60,86 @@ const defaultCategorySeeds = [
     }
 ];
 
+const seedingLocks = new Set();
+
 async function autoSeedCategories(userId) {
+    if (!userId) return;
+    const userIdStr = userId.toString();
+
+    // If another request is currently seeding categories for this user, wait for it to complete
+    if (seedingLocks.has(userIdStr)) {
+        while (seedingLocks.has(userIdStr)) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        return;
+    }
+
+    seedingLocks.add(userIdStr);
     try {
+        const existingCount = await Category.countDocuments({ userId });
+        if (existingCount > 0) {
+            return;
+        }
+
         for (const item of defaultCategorySeeds) {
-            const parent = await Category.create({
-                userId,
-                name: item.name,
-                type: item.type,
-                icon: item.icon,
-                color: item.color,
-                parentCategoryId: null
-            });
+            let parent = await Category.findOne({ userId, name: item.name, type: item.type, parentCategoryId: null });
+            if (!parent) {
+                try {
+                    parent = await Category.create({
+                        userId,
+                        name: item.name,
+                        type: item.type,
+                        icon: item.icon,
+                        color: item.color,
+                        parentCategoryId: null
+                    });
+                } catch (err) {
+                    parent = await Category.findOne({ userId, name: item.name, type: item.type, parentCategoryId: null });
+                }
+            }
+
+            if (!parent) continue;
+
             for (const subName of item.subs) {
-                await Category.create({
-                    userId,
-                    name: subName,
-                    type: item.type,
-                    icon: item.icon,
-                    color: item.color,
-                    parentCategoryId: parent._id
-                });
+                const existingSub = await Category.findOne({ userId, name: subName, type: item.type, parentCategoryId: parent._id });
+                if (!existingSub) {
+                    try {
+                        await Category.create({
+                            userId,
+                            name: subName,
+                            type: item.type,
+                            icon: item.icon,
+                            color: item.color,
+                            parentCategoryId: parent._id
+                        });
+                    } catch (err) {
+                        // Ignore duplicate key error gracefully
+                    }
+                }
             }
         }
     } catch (err) {
-        console.error('Category auto-seed failed:', err);
+        console.error('Category auto-seed failed:', err.message);
+    } finally {
+        seedingLocks.delete(userIdStr);
     }
 }
 
 const categoryController = {
+    seedUserDefaultCategories: autoSeedCategories,
+
     async getAll(req, res) {
         try {
-            let count = await Category.countDocuments({ userId: req.userId });
-            if (count === 0) {
+            let categories = await Category.find({ userId: req.userId });
+            if (categories.length === 0) {
                 await autoSeedCategories(req.userId);
+                categories = await Category.find({ userId: req.userId });
             }
 
             const filter = { userId: req.userId };
             if (req.query.type) filter.type = req.query.type;
             
-            const categories = await Category.find(filter);
+            categories = await Category.find(filter);
             
             // Organize into hierarchical tree order: Parent followed immediately by its subcategories
             const parents = categories.filter(c => !c.parentCategoryId).sort((a, b) => a.name.localeCompare(b.name));

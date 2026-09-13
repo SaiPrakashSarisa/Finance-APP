@@ -18,7 +18,9 @@ const logger = require('../utils/logger');
 const accountService = {
     async getAll(userId) {
         let accounts = await accountRepository.findAll(userId);
-        if (!accounts || accounts.length === 0) {
+        // Default test accounts are seeded ONLY during local development/testing
+        const isDev = process.env.NODE_ENV === 'development' || process.env.SEED_DEV_ACCOUNTS === 'true';
+        if ((!accounts || accounts.length === 0) && isDev) {
             try {
                 const bank = await this.create({
                     userId,
@@ -42,10 +44,11 @@ const accountService = {
                 });
                 accounts = [bank, cash];
             } catch (err) {
-                logger.error('Failed to auto-seed default accounts:', err);
+                logger.error('Failed to auto-seed default accounts:', err.message);
+                accounts = await accountRepository.findAll(userId);
             }
         }
-        return accounts;
+        return accounts || [];
     },
 
     async getById(accountId, userId) {
@@ -57,6 +60,12 @@ const accountService = {
             const initialBal = Number(data.initialBalance !== undefined ? data.initialBalance : (data.balance || 0));
             data.initialBalance = initialBal;
             data.balance = initialBal;
+
+            // Check duplicate account name/type for same user to ensure idempotency
+            const existing = await accountRepository.findOne ? await accountRepository.findOne({ userId: data.userId, name: data.name, type: data.type }, session) : null;
+            if (existing) {
+                return existing;
+            }
 
             const account = await accountRepository.create(data, session);
 

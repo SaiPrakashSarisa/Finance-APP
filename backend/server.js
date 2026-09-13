@@ -22,6 +22,8 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/finance_ap
 
 const loggerMiddleware = require('./src/middlewares/loggerMiddleware');
 const errorHandler = require('./src/middlewares/errorHandler');
+const idempotencyMiddleware = require('./src/middleware/idempotency');
+const correlationIdMiddleware = require('./src/middleware/correlationId');
 
 // Middleware
 const allowedOrigins = [
@@ -40,9 +42,16 @@ app.use(cors({
     },
     credentials: true
 }));
+app.use(correlationIdMiddleware);
 app.use(express.json());
 app.use(cookieParser());
 app.use(loggerMiddleware);
+app.use(idempotencyMiddleware);
+
+// Root Ping & Health Check (Prevents Render 404 logs on cold starts)
+app.get('/', (req, res) => res.json({ status: 'ok', service: 'Finance App API', timestamp: new Date() }));
+app.head('/', (req, res) => res.status(200).end());
+app.get('/api', (req, res) => res.json({ status: 'ok', service: 'Finance App API', timestamp: new Date() }));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -64,7 +73,11 @@ app.get('/api/health', (req, res) => {
 app.use(errorHandler);
 
 // Connect to MongoDB and start server
-mongoose.connect(MONGO_URI)
+mongoose.connect(MONGO_URI, {
+    maxPoolSize: 10,
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000
+})
     .then(() => {
         console.log('✅ Connected to MongoDB');
         app.listen(PORT, '0.0.0.0', () => {

@@ -43,5 +43,6 @@ const categorySchema = new mongoose.Schema({
 
 categorySchema.index({ userId: 1, type: 1 });
 categorySchema.index({ parentCategoryId: 1 });
+categorySchema.index({ userId: 1, name: 1, type: 1, parentCategoryId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Category', categorySchema);

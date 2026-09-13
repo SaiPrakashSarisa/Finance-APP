@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const categoryController = require('./categoryController');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key';
 const COOKIE_EXPIRE = parseInt(process.env.COOKIE_EXPIRE) || 7; // days
@@ -57,6 +58,9 @@ const authController = {
                 email,
                 passwordHash
             });
+
+            // Seed default categories ONCE for newly registered user
+            await categoryController.seedUserDefaultCategories(user._id);
 
             sendToken(user, 201, res);
         } catch (error) {
