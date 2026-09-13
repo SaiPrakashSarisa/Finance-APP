@@ -17,7 +17,7 @@ const authRoutes = require('./src/routes/authRoutes');
 const { protect } = require('./src/middleware/authMiddleware');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/finance_app';
 
 const loggerMiddleware = require('./src/middlewares/loggerMiddleware');
@@ -26,10 +26,18 @@ const errorHandler = require('./src/middlewares/errorHandler');
 // Middleware
 const allowedOrigins = [
     "http://localhost:3000",
+    "http://localhost:5001",
+    "http://10.0.2.2:5001",
     "https://ss-money-manager.vercel.app",
 ];
 app.use(cors({
-    origin: allowedOrigins,
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps, curl, or Native HTTP clients)
+        if (!origin || allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('http://localhost') || origin.startsWith('http://10.0.2.2')) {
+            return callback(null, true);
+        }
+        return callback(null, true);
+    },
     credentials: true
 }));
 app.use(express.json());
@@ -59,8 +67,8 @@ app.use(errorHandler);
 mongoose.connect(MONGO_URI)
     .then(() => {
         console.log('✅ Connected to MongoDB');
-        app.listen(PORT, () => {
-            console.log(`🚀 Server running on http://localhost:${PORT}`);
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
         });
     })
     .catch(err => {

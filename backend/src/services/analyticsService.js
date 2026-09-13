@@ -11,31 +11,29 @@ const analyticsService = {
         let startDate, endDate;
 
         if (month !== null && year !== null && month !== undefined && year !== undefined) {
-            startDate = new Date(year, month - 1, 1);
+            startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
             endDate = new Date(year, month, 0, 23, 59, 59, 999);
         } else {
             const user = await User.findById(userId).select('settings');
             const range = user?.settings?.dashboardRange || '1m';
-
-            endDate = new Date();
-            endDate.setHours(23, 59, 59, 999);
-            startDate = new Date();
+            const now = new Date();
 
             if (range === '1m') {
-                startDate.setDate(1);
+                startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+                endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
             } else if (range === '3m') {
-                startDate.setMonth(endDate.getMonth() - 2);
-                startDate.setDate(1);
+                startDate = new Date(now.getFullYear(), now.getMonth() - 2, 1, 0, 0, 0, 0);
+                endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
             } else if (range === '6m') {
-                startDate.setMonth(endDate.getMonth() - 5);
-                startDate.setDate(1);
+                startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1, 0, 0, 0, 0);
+                endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
             } else if (range === '1y') {
-                startDate.setMonth(endDate.getMonth() - 11);
-                startDate.setDate(1);
+                startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1, 0, 0, 0, 0);
+                endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
             } else {
                 startDate = new Date(0); // All time
+                endDate = new Date(now.getFullYear() + 10, 11, 31, 23, 59, 59, 999);
             }
-            startDate.setHours(0, 0, 0, 0);
         }
         return { startDate, endDate };
     },
@@ -91,7 +89,7 @@ const analyticsService = {
         return result;
     },
 
-    // Expense breakdown by category
+    // Expense breakdown by category (grouped by Parent Category with subcategory breakdowns)
     async getCategoryBreakdown(userId, month, year) {
         const cacheKey = `${userId}:categories:${month || 'default'}:${year || 'default'}`;
         const cached = cache.get(cacheKey);
@@ -99,7 +97,7 @@ const analyticsService = {
 
         const { startDate, endDate } = await this._getDateRange(userId, month, year);
 
-        const result = await Transaction.aggregate([
+        const raw = await Transaction.aggregate([
             {
                 $match: {
                     userId: new mongoose.Types.ObjectId(userId),
@@ -117,17 +115,77 @@ const analyticsService = {
             },
             { $unwind: { path: '$category', preserveNullAndEmptyArrays: true } },
             {
+                $lookup: {
+                    from: 'categories',
+                    localField: 'category.parentCategoryId',
+                    foreignField: '_id',
+                    as: 'parentCategory'
+                }
+            },
+            { $unwind: { path: '$parentCategory', preserveNullAndEmptyArrays: true } },
+            {
+                $project: {
+                    amount: 1,
+                    effectiveCategoryId: { $ifNull: ['$parentCategory._id', '$category._id'] },
+                    effectiveName: { $ifNull: ['$parentCategory.name', '$category.name'] },
+                    effectiveColor: { $ifNull: ['$parentCategory.color', '$category.color'] },
+                    effectiveIcon: { $ifNull: ['$parentCategory.icon', '$category.icon'] },
+                    subCategoryId: '$category._id',
+                    subName: '$category.name',
+                    subColor: '$category.color',
+                    subIcon: '$category.icon'
+                }
+            },
+            {
                 $group: {
-                    _id: '$categoryId',
-                    name: { $first: { $ifNull: ['$category.name', 'Uncategorized'] } },
-                    color: { $first: { $ifNull: ['$category.color', '#94a3b8'] } },
-                    icon: { $first: { $ifNull: ['$category.icon', '📁'] } },
+                    _id: '$effectiveCategoryId',
+                    name: { $first: '$effectiveName' },
+                    color: { $first: '$effectiveColor' },
+                    icon: { $first: '$effectiveIcon' },
                     total: { $sum: '$amount' },
-                    count: { $sum: 1 }
+                    count: { $sum: 1 },
+                    subItems: {
+                        $push: {
+                            categoryId: '$subCategoryId',
+                            name: '$subName',
+                            color: '$subColor',
+                            icon: '$subIcon',
+                            amount: '$amount'
+                        }
+                    }
                 }
             },
             { $sort: { total: -1 } }
         ]);
+
+        const result = raw.map(item => {
+            const subMap = {};
+            if (Array.isArray(item.subItems)) {
+                item.subItems.forEach(sub => {
+                    const sId = sub.categoryId ? sub.categoryId.toString() : 'general';
+                    if (!subMap[sId]) {
+                        subMap[sId] = {
+                            categoryId: sId,
+                            name: sub.name || item.name || 'General',
+                            color: sub.color || item.color || '#94a3b8',
+                            icon: sub.icon || item.icon || 'folder',
+                            total: 0
+                        };
+                    }
+                    subMap[sId].total += sub.amount;
+                });
+            }
+
+            return {
+                _id: item._id,
+                name: item.name || 'Uncategorized',
+                color: item.color || '#94a3b8',
+                icon: item.icon || 'folder',
+                total: item.total,
+                count: item.count,
+                subcategories: Object.values(subMap)
+            };
+        });
 
         cache.set(cacheKey, result, 600);
         return result;
@@ -465,12 +523,62 @@ const analyticsService = {
                 }
             },
             {
+                $lookup: {
+                    from: 'merchants',
+                    localField: 'merchantId',
+                    foreignField: '_id',
+                    as: 'merchantObj'
+                }
+            },
+            { $unwind: { path: '$merchantObj', preserveNullAndEmptyArrays: true } },
+            {
+                $lookup: {
+                    from: 'categories',
+                    localField: 'categoryId',
+                    foreignField: '_id',
+                    as: 'categoryObj'
+                }
+            },
+            { $unwind: { path: '$categoryObj', preserveNullAndEmptyArrays: true } },
+            {
+                $project: {
+                    amount: 1,
+                    date: 1,
+                    categoryId: 1,
+                    displayName: {
+                        $cond: [
+                            { $gt: [{ $strLenCP: { $ifNull: ['$merchantObj.name', ''] } }, 0] },
+                            '$merchantObj.name',
+                            {
+                                $cond: [
+                                    { $gt: [{ $strLenCP: { $ifNull: ['$merchantName', ''] } }, 0] },
+                                    '$merchantName',
+                                    {
+                                        $cond: [
+                                            { $gt: [{ $strLenCP: { $ifNull: ['$notes', ''] } }, 0] },
+                                            '$notes',
+                                            {
+                                                $cond: [
+                                                    { $gt: [{ $strLenCP: { $ifNull: ['$note', ''] } }, 0] },
+                                                    '$note',
+                                                    { $ifNull: ['$categoryObj.name', 'Recurring Subscription'] }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            },
+            {
                 $group: {
                     _id: {
-                        note: { $toLower: '$note' },
+                        name: { $toLower: '$displayName' },
                         amount: '$amount'
                     },
-                    originalNote: { $first: '$note' },
+                    name: { $first: '$displayName' },
                     amount: { $first: '$amount' },
                     category: { $first: '$categoryId' },
                     count: { $sum: 1 },
@@ -483,7 +591,8 @@ const analyticsService = {
 
         const subscriptions = await Transaction.aggregate(pipeline);
         return subscriptions.map(s => ({
-            name: s.originalNote || 'Recurring Bill',
+            name: s.name || 'Recurring Bill',
+            merchantName: s.name || 'Recurring Bill',
             amount: s.amount,
             frequency: 'Monthly',
             occurrences: s.count,

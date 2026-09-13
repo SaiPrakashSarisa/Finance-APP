@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api";
 
 async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -103,7 +103,7 @@ export const lookupMasterItem = (name: string) =>
 
 // ── CSV Export & Restore Engine ──
 export const exportTransactionsCSV = async () => {
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api";
   const res = await fetch(`${API_BASE}/transactions/export/csv`, { credentials: 'include' });
   const blob = await res.blob();
   const url = window.URL.createObjectURL(blob);

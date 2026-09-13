@@ -10,7 +10,7 @@ require('dotenv').config();
 
 module.exports = {
     env: process.env.NODE_ENV || 'development',
-    port: process.env.PORT || 5000,
+    port: process.env.PORT || 5001,
     mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/finance_app',
     jwtSecret: process.env.JWT_SECRET || 'supersecretkey_change_in_production_12345',
     jwtExpiration: process.env.JWT_EXPIRATION || '7d',

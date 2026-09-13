@@ -17,7 +17,35 @@ const logger = require('../utils/logger');
 
 const accountService = {
     async getAll(userId) {
-        return accountRepository.findAll(userId);
+        let accounts = await accountRepository.findAll(userId);
+        if (!accounts || accounts.length === 0) {
+            try {
+                const bank = await this.create({
+                    userId,
+                    name: 'Primary Bank Account',
+                    type: 'bank',
+                    initialBalance: 25000,
+                    balance: 25000,
+                    currency: 'INR',
+                    color: '#6366F1',
+                    icon: 'account_balance'
+                });
+                const cash = await this.create({
+                    userId,
+                    name: 'Cash Wallet',
+                    type: 'cash',
+                    initialBalance: 2500,
+                    balance: 2500,
+                    currency: 'INR',
+                    color: '#4EDEA3',
+                    icon: 'payments'
+                });
+                accounts = [bank, cash];
+            } catch (err) {
+                logger.error('Failed to auto-seed default accounts:', err);
+            }
+        }
+        return accounts;
     },
 
     async getById(accountId, userId) {
