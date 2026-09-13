@@ -2,10 +2,24 @@
 /// Author: Antigravity AI
 
 class ApiEndpoints {
-  // Base URLs
-  static const String baseUrl = 'http://10.0.2.2:5001/api'; // Android Emulator
+  // Base URLs - Configurable via --dart-define=API_BASE_URL=...
+  static const String _envBaseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:5001/api',
+  );
+
   static const String localBaseUrl = 'http://localhost:5001/api'; // iOS Simulator & Web
   static const String physicalDeviceBaseUrl = 'http://192.168.1.5:5001/api'; // Physical Phone on Local Wi-Fi
+
+  static String get baseUrl {
+    if (_envBaseUrl.endsWith('/api')) {
+      return _envBaseUrl;
+    } else if (_envBaseUrl.endsWith('/')) {
+      return '${_envBaseUrl}api';
+    } else {
+      return '$_envBaseUrl/api';
+    }
+  }
 
   // Auth
   static const String login = '/auth/login';

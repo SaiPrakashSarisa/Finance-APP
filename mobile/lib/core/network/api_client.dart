@@ -9,12 +9,12 @@ import '../constants/api_endpoints.dart';
 class ApiClient {
   late final Dio dio;
 
-  static const List<String> fallbackUrls = [
-    ApiEndpoints.localBaseUrl, // http://localhost:5001/api (iOS, Web, ADB reverse)
-    'http://127.0.0.1:5001/api', // http://127.0.0.1:5001/api
-    ApiEndpoints.physicalDeviceBaseUrl, // http://192.168.1.5:5001/api (Wi-Fi)
-    ApiEndpoints.baseUrl, // http://10.0.2.2:5001/api (Android Emulator)
-  ];
+  static List<String> get fallbackUrls => [
+        ApiEndpoints.localBaseUrl, // http://localhost:5001/api (iOS, Web, ADB reverse)
+        'http://127.0.0.1:5001/api', // http://127.0.0.1:5001/api
+        ApiEndpoints.physicalDeviceBaseUrl, // http://192.168.1.5:5001/api (Wi-Fi)
+        ApiEndpoints.baseUrl, // http://10.0.2.2:5001/api (Android Emulator)
+      ];
 
   static String _activeBaseUrl = ApiEndpoints.baseUrl;
 
