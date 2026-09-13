@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'core/constants/app_colors.dart';
 import 'core/router/app_router.dart';
 
 /// Purpose: Main Entry Point of Flutter Mobile Application
 /// Author: Antigravity AI
-/// Last Modified: 2026-08-03
+/// Design System: Stitch Finance Hub Enterprise (Luminous Ledger)
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +19,7 @@ class FinanceApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Finance Tracker Mobile',
+      title: 'Finance Hub Mobile',
       debugShowCheckedModeBanner: false,
       themeMode: ThemeMode.dark,
       theme: ThemeData.dark().copyWith(
@@ -26,7 +27,11 @@ class FinanceApp extends StatelessWidget {
         primaryColor: AppColors.primaryViolet,
         colorScheme: const ColorScheme.dark(
           primary: AppColors.primaryViolet,
-          surface: AppColors.surface,
+          surface: AppColors.surfaceContainer,
+          background: AppColors.background,
+        ),
+        textTheme: GoogleFonts.outfitTextTheme(
+          ThemeData.dark().textTheme,
         ),
       ),
       routerConfig: appRouter,
