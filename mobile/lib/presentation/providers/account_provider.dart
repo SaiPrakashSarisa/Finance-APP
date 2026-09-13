@@ -3,9 +3,8 @@ import '../../data/models/account_model.dart';
 import '../../data/repositories/account_repository.dart';
 import 'auth_provider.dart';
 
-/// Purpose: Accounts State Provider
+/// Purpose: Accounts State Management Provider
 /// Author: Antigravity AI
-/// Last Modified: 2026-08-03
 
 final accountRepositoryProvider = Provider<AccountRepository>((ref) {
   return AccountRepository(ref.watch(apiClientProvider));
@@ -53,8 +52,35 @@ class AccountNotifier extends StateNotifier<AccountState> {
     } catch (_) {}
     return false;
   }
+
+  Future<bool> updateAccount(String id, Map<String, dynamic> data) async {
+    try {
+      final acc = await repository.updateAccount(id, data);
+      if (acc != null) {
+        await fetchAccounts();
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  Future<bool> deleteAccount(String id) async {
+    try {
+      final ok = await repository.deleteAccount(id);
+      if (ok) {
+        await fetchAccounts();
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
 }
 
 final accountProvider = StateNotifierProvider<AccountNotifier, AccountState>((ref) {
-  return AccountNotifier(ref.watch(accountRepositoryProvider));
+  final authState = ref.watch(authProvider);
+  final notifier = AccountNotifier(ref.watch(accountRepositoryProvider));
+  if (authState.isAuthenticated) {
+    notifier.fetchAccounts();
+  }
+  return notifier;
 });

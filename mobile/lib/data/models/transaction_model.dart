@@ -1,6 +1,5 @@
 /// Purpose: Transaction & Receipt Item Data Models
 /// Author: Antigravity AI
-/// Last Modified: 2026-08-03
 
 class TransactionItemModel {
   final String name;
@@ -48,6 +47,7 @@ class TransactionModel {
   final String? categoryName;
   final String? parentCategoryName;
   final String? subCategoryName;
+  final String? creditId;
   final String? note;
   final String date;
   final bool isItemized;
@@ -63,6 +63,7 @@ class TransactionModel {
     this.categoryName,
     this.parentCategoryName,
     this.subCategoryName,
+    this.creditId,
     this.note,
     required this.date,
     required this.isItemized,
@@ -79,7 +80,7 @@ class TransactionModel {
     String? pCatName;
     String? sCatName;
     if (json['categoryId'] is Map) {
-      const cObj = json['categoryId'];
+      final cObj = json['categoryId'];
       catName = cObj['name'];
       if (cObj['parentCategoryId'] is Map) {
         pCatName = cObj['parentCategoryId']['name'];
@@ -87,6 +88,13 @@ class TransactionModel {
       } else {
         pCatName = cObj['name'];
       }
+    }
+
+    String? cId;
+    if (json['creditId'] is Map) {
+      cId = json['creditId']['_id'];
+    } else if (json['creditId'] != null) {
+      cId = json['creditId'].toString();
     }
 
     final itemList = (json['items'] as List<dynamic>?)
@@ -104,7 +112,8 @@ class TransactionModel {
       categoryName: catName,
       parentCategoryName: pCatName,
       subCategoryName: sCatName,
-      note: json['note'],
+      creditId: cId,
+      note: json['note'] ?? json['notes'],
       date: json['date'] ?? '',
       isItemized: json['isItemized'] ?? false,
       items: itemList,

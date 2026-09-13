@@ -2,9 +2,8 @@ import '../../core/constants/api_endpoints.dart';
 import '../../core/network/api_client.dart';
 import '../models/transaction_model.dart';
 
-/// Purpose: Transaction Data Repository
+/// Purpose: Transaction Data Repository with CSV Backup capabilities
 /// Author: Antigravity AI
-/// Last Modified: 2026-08-03
 
 class TransactionRepository {
   final ApiClient apiClient;
@@ -39,5 +38,24 @@ class TransactionRepository {
   Future<bool> deleteTransaction(String id) async {
     final response = await apiClient.delete('${ApiEndpoints.transactions}/$id');
     return response.data != null && response.data['success'] == true;
+  }
+
+  Future<String?> exportCsv() async {
+    final response = await apiClient.get(ApiEndpoints.exportCsv);
+    if (response.data != null) {
+      return response.data.toString();
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> importCsv(String csvText, {String mode = 'replace'}) async {
+    final response = await apiClient.post(
+      ApiEndpoints.importCsv,
+      data: {'csvText': csvText, 'mode': mode},
+    );
+    if (response.data != null) {
+      return Map<String, dynamic>.from(response.data);
+    }
+    return null;
   }
 }

@@ -2,9 +2,8 @@ import '../../core/constants/api_endpoints.dart';
 import '../../core/network/api_client.dart';
 import '../models/account_model.dart';
 
-/// Purpose: Account Data Repository
+/// Purpose: Account Data Repository with Full CRUD
 /// Author: Antigravity AI
-/// Last Modified: 2026-08-03
 
 class AccountRepository {
   final ApiClient apiClient;
@@ -26,5 +25,18 @@ class AccountRepository {
       return AccountModel.fromJson(response.data['data']);
     }
     return null;
+  }
+
+  Future<AccountModel?> updateAccount(String id, Map<String, dynamic> data) async {
+    final response = await apiClient.put('${ApiEndpoints.accounts}/$id', data: data);
+    if (response.data != null && response.data['success'] == true) {
+      return AccountModel.fromJson(response.data['data']);
+    }
+    return null;
+  }
+
+  Future<bool> deleteAccount(String id) async {
+    final response = await apiClient.delete('${ApiEndpoints.accounts}/$id');
+    return response.data != null && response.data['success'] == true;
   }
 }
