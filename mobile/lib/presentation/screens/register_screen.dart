@@ -5,28 +5,31 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../providers/auth_provider.dart';
 
-/// Purpose: Login Screen
+/// Purpose: Registration / Sign Up Screen
 /// Author: Antigravity AI
 /// Design System: Stitch Finance Hub Enterprise (Luminous Ledger)
 
-class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+class RegisterScreen extends ConsumerStatefulWidget {
+  const RegisterScreen({super.key});
 
   @override
-  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen> {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> {
+  final _nameController = TextEditingController(text: 'Android Demo User');
   final _emailController = TextEditingController(text: 'android_demo@example.com');
   final _passwordController = TextEditingController(text: '123456');
   bool _obscurePassword = true;
 
-  Future<void> _handleLogin() async {
+  Future<void> _handleRegister() async {
+    final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-    if (email.isEmpty || password.isEmpty) return;
 
-    final success = await ref.read(authProvider.notifier).login(email, password);
+    if (name.isEmpty || email.isEmpty || password.isEmpty) return;
+
+    final success = await ref.read(authProvider.notifier).register(name, email, password);
 
     if (success && mounted) {
       context.go('/dashboard');
@@ -39,42 +42,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.onSurface),
+          onPressed: () => context.pop(),
+        ),
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Icon Header with Glow
-                Center(
-                  child: Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        colors: [AppColors.primaryContainer, AppColors.primaryViolet],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primaryViolet.withOpacity(0.35),
-                          blurRadius: 20,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.account_balance_wallet_rounded,
-                      color: Colors.white,
-                      size: 36,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
                 Text(
-                  'Finance Hub',
+                  'Create Account',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.outfit(
                     color: AppColors.onSurface,
@@ -85,14 +70,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Sign in to access your financial intelligence',
+                  'Start managing your finances like an enterprise',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.outfit(
                     color: AppColors.onSurfaceVariant,
                     fontSize: 13,
                   ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 28),
 
                 // Glass Form Panel
                 Container(
@@ -101,17 +86,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     color: AppColors.surfaceContainer,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: AppColors.glassBorder),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      Text(
+                        'Full Name',
+                        style: GoogleFonts.outfit(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _nameController,
+                        style: GoogleFonts.outfit(color: AppColors.onSurface),
+                        decoration: InputDecoration(
+                          hintText: 'Enter your full name',
+                          hintStyle: GoogleFonts.outfit(color: AppColors.outline),
+                          filled: true,
+                          fillColor: AppColors.surfaceContainerHigh,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          prefixIcon: const Icon(Icons.person_outline_rounded, color: AppColors.primary, size: 20),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       Text(
                         'Email Address',
                         style: GoogleFonts.outfit(
@@ -153,7 +157,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         obscureText: _obscurePassword,
                         style: GoogleFonts.outfit(color: AppColors.onSurface),
                         decoration: InputDecoration(
-                          hintText: 'Enter your password',
+                          hintText: 'Create a password',
                           hintStyle: GoogleFonts.outfit(color: AppColors.outline),
                           filled: true,
                           fillColor: AppColors.surfaceContainerHigh,
@@ -195,7 +199,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ],
                       const SizedBox(height: 24),
                       ElevatedButton(
-                        onPressed: authState.isLoading ? null : _handleLogin,
+                        onPressed: authState.isLoading ? null : _handleRegister,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryViolet,
                           padding: const EdgeInsets.symmetric(vertical: 14),
@@ -210,7 +214,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                               )
                             : Text(
-                                'Sign In',
+                                'Create Account',
                                 style: GoogleFonts.outfit(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
@@ -220,27 +224,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      "Don't have an account? ",
-                      style: GoogleFonts.outfit(color: AppColors.onSurfaceVariant, fontSize: 13),
-                    ),
-                    GestureDetector(
-                      onTap: () => context.push('/register'),
-                      child: Text(
-                        'Create Account',
-                        style: GoogleFonts.outfit(
-                          color: AppColors.primary,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),

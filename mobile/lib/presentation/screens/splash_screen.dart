@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../providers/auth_provider.dart';
 
-/// Purpose: Splash Screen with Session Checking
+/// Purpose: Splash & Initial Session Check Screen
 /// Author: Antigravity AI
-/// Last Modified: 2026-08-03
+/// Design System: Stitch Finance Hub Enterprise
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -19,11 +20,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkAuth();
+    _navigateNext();
   }
 
-  Future<void> _checkAuth() async {
-    await Future.delayed(const Duration(seconds: 1));
+  Future<void> _navigateNext() async {
+    await Future.delayed(const Duration(milliseconds: 1200));
     if (!mounted) return;
     final authState = ref.read(authProvider);
     if (authState.isAuthenticated) {
@@ -35,20 +36,65 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       backgroundColor: AppColors.background,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.account_balance_wallet_rounded, size: 72, color: AppColors.primaryViolet),
-            SizedBox(height: 16),
-            Text(
-              'Finance Tracker',
-              style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+            // Logo Container with Neon Glow
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [AppColors.primaryContainer, AppColors.primaryViolet],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primaryViolet.withOpacity(0.4),
+                    blurRadius: 28,
+                    spreadRadius: 4,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.account_balance_wallet_rounded,
+                color: Colors.white,
+                size: 40,
+              ),
             ),
-            SizedBox(height: 24),
-            CircularProgressIndicator(color: AppColors.primaryViolet),
+            const SizedBox(height: 24),
+            Text(
+              'Finance Hub',
+              style: GoogleFonts.outfit(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: AppColors.onSurface,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Enterprise Financial Intelligence',
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 48),
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
+            ),
           ],
         ),
       ),
