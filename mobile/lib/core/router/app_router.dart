@@ -12,12 +12,28 @@ import '../../presentation/screens/categories_screen.dart';
 /// Author: Antigravity AI
 /// Design System: Stitch Finance Hub Enterprise
 
+import '../../presentation/screens/auth/mpin_screen.dart';
+
 final GoRouter appRouter = GoRouter(
   initialLocation: '/splash',
   routes: <RouteBase>[
     GoRoute(
       path: '/splash',
       builder: (BuildContext context, GoRouterState state) => const SplashScreen(),
+    ),
+    GoRoute(
+      path: '/mpin',
+      builder: (BuildContext context, GoRouterState state) => MpinScreen(
+        mode: MpinMode.verify,
+        onSuccess: () => context.go('/dashboard'),
+      ),
+    ),
+    GoRoute(
+      path: '/mpin-setup',
+      builder: (BuildContext context, GoRouterState state) => MpinScreen(
+        mode: MpinMode.setup,
+        onSuccess: () => context.go('/dashboard'),
+      ),
     ),
     GoRoute(
       path: '/login',

@@ -1,13 +1,15 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import '../constants/api_endpoints.dart';
 
-/// Purpose: Dio HTTP API Client with JWT Bearer Token Interceptor & Robust Error Handling
+/// Purpose: Production Dio HTTP API Client with JWT Bearer Token, Idempotency Header & Timeout Safety
 /// Author: Antigravity AI
 
 class ApiClient {
   late final Dio dio;
+  static final _uuid = const Uuid();
 
   static List<String> get fallbackUrls => [
         ApiEndpoints.localBaseUrl, // http://localhost:5001/api (iOS, Web, ADB reverse)
@@ -29,8 +31,9 @@ class ApiClient {
     dio = Dio(
       BaseOptions(
         baseUrl: initialUrl,
-        connectTimeout: const Duration(seconds: 8),
-        receiveTimeout: const Duration(seconds: 8),
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 30),
         validateStatus: (status) => status != null && status < 500,
         headers: {
           'Content-Type': 'application/json',
@@ -48,11 +51,25 @@ class ApiClient {
             options.headers['Authorization'] = 'Bearer $token';
             options.headers['Cookie'] = 'token=$token';
           }
+
+          // Attach X-Idempotency-Key header automatically for state-mutating HTTP methods if not provided
+          final method = options.method.toUpperCase();
+          if (['POST', 'PUT', 'PATCH', 'DELETE'].contains(method)) {
+            if (!options.headers.containsKey('X-Idempotency-Key')) {
+              options.headers['X-Idempotency-Key'] = _uuid.v4();
+            }
+          }
+
           return handler.next(options);
         },
         onError: (DioException e, handler) async {
-          if (e.type == DioExceptionType.connectionError ||
-              e.type == DioExceptionType.connectionTimeout) {
+          // CRITICAL BUGFIX: Fallback host retry is restricted to READ-ONLY (GET, HEAD) requests.
+          // State-mutating requests (POST, PUT, PATCH) must NEVER be automatically re-transmitted on connection errors.
+          final isReadMethod = ['GET', 'HEAD'].contains(e.requestOptions.method.toUpperCase());
+
+          if (isReadMethod &&
+              (e.type == DioExceptionType.connectionError ||
+               e.type == DioExceptionType.connectionTimeout)) {
             for (final fallback in fallbackUrls) {
               if (fallback == dio.options.baseUrl) continue;
               try {
@@ -69,8 +86,8 @@ class ApiClient {
                 final fullPath = options.path;
                 final fallbackClient = Dio(BaseOptions(
                   baseUrl: fallback,
-                  connectTimeout: const Duration(seconds: 5),
-                  receiveTimeout: const Duration(seconds: 5),
+                  connectTimeout: const Duration(seconds: 8),
+                  receiveTimeout: const Duration(seconds: 8),
                 ));
                 final response = await fallbackClient.request(
                   fullPath,
@@ -96,19 +113,34 @@ class ApiClient {
     return await dio.get(path, queryParameters: queryParameters);
   }
 
-  Future<Response> post(String path, {dynamic data}) async {
-    return await dio.post(path, data: data);
+  Future<Response> post(String path, {dynamic data, Map<String, dynamic>? headers}) async {
+    return await dio.post(
+      path,
+      data: data,
+      options: headers != null ? Options(headers: headers) : null,
+    );
   }
 
-  Future<Response> put(String path, {dynamic data}) async {
-    return await dio.put(path, data: data);
+  Future<Response> put(String path, {dynamic data, Map<String, dynamic>? headers}) async {
+    return await dio.put(
+      path,
+      data: data,
+      options: headers != null ? Options(headers: headers) : null,
+    );
   }
 
-  Future<Response> patch(String path, {dynamic data}) async {
-    return await dio.patch(path, data: data);
+  Future<Response> patch(String path, {dynamic data, Map<String, dynamic>? headers}) async {
+    return await dio.patch(
+      path,
+      data: data,
+      options: headers != null ? Options(headers: headers) : null,
+    );
   }
 
-  Future<Response> delete(String path) async {
-    return await dio.delete(path);
+  Future<Response> delete(String path, {Map<String, dynamic>? headers}) async {
+    return await dio.delete(
+      path,
+      options: headers != null ? Options(headers: headers) : null,
+    );
   }
 }

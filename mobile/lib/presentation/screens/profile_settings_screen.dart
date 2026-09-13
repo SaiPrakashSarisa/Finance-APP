@@ -268,6 +268,14 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
                     ),
                     Divider(height: 1, color: AppColors.outlineVariant.withOpacity(0.3)),
                     ListTile(
+                      leading: const Icon(Icons.pin_outlined, color: AppColors.primary),
+                      title: Text('4-Digit MPIN Quick Unlock', style: GoogleFonts.outfit(color: AppColors.onSurface, fontWeight: FontWeight.w600)),
+                      subtitle: Text('Set or change local 4-digit PIN', style: GoogleFonts.outfit(color: AppColors.onSurfaceVariant, fontSize: 11)),
+                      trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.onSurfaceVariant),
+                      onTap: () => context.push('/mpin-setup'),
+                    ),
+                    Divider(height: 1, color: AppColors.outlineVariant.withOpacity(0.3)),
+                    ListTile(
                       leading: const Icon(Icons.category_outlined, color: AppColors.primary),
                       title: Text('Manage Categories', style: GoogleFonts.outfit(color: AppColors.onSurface, fontWeight: FontWeight.w600)),
                       trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.onSurfaceVariant),

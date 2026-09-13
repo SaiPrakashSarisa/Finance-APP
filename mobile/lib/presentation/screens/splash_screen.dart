@@ -9,6 +9,8 @@ import '../providers/auth_provider.dart';
 /// Author: Antigravity AI
 /// Design System: Stitch Finance Hub Enterprise
 
+import '../../core/security/mpin_service.dart';
+
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
@@ -28,7 +30,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     if (!mounted) return;
     final authState = ref.read(authProvider);
     if (authState.isAuthenticated) {
-      context.go('/dashboard');
+      final hasMpin = await MpinService.hasMpin();
+      if (hasMpin && mounted) {
+        context.go('/mpin');
+      } else if (mounted) {
+        context.go('/dashboard');
+      }
     } else {
       context.go('/login');
     }
