@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
@@ -46,28 +48,60 @@ class AuthNotifier extends StateNotifier<AuthState> {
     checkSession();
   }
 
+  /// Instant local session check (0ms latency, zero cold-start delay)
   Future<void> checkSession() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('jwt_token');
+
       if (token == null || token.isEmpty) {
         state = state.copyWith(isAuthenticated: false, isLoading: false);
         return;
       }
 
+      // 1. Immediately restore cached user profile if present
+      UserModel? cachedUser;
+      final cachedUserStr = prefs.getString('cached_user');
+      if (cachedUserStr != null && cachedUserStr.isNotEmpty) {
+        try {
+          cachedUser = UserModel.fromJson(jsonDecode(cachedUserStr));
+        } catch (_) {}
+      }
+
+      // 2. Immediately mark user as authenticated locally (no waiting for remote API!)
+      state = AuthState(
+        isAuthenticated: true,
+        isLoading: false,
+        user: cachedUser,
+      );
+
+      // 3. Fire-and-forget background verification with remote server
+      _verifySessionWithServer(token);
+    } catch (_) {
+      state = state.copyWith(isAuthenticated: false, isLoading: false);
+    }
+  }
+
+  /// Non-blocking background verification with remote API
+  Future<void> _verifySessionWithServer(String token) async {
+    try {
       final response = await apiClient.get(ApiEndpoints.me);
       if (response.data != null && response.data['success'] == true) {
         final userObj = UserModel.fromJson(response.data['user']);
-        state = AuthState(
-          isAuthenticated: true,
-          isLoading: false,
-          user: userObj,
-        );
-      } else {
-        state = state.copyWith(isAuthenticated: false, isLoading: false);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('cached_user', jsonEncode(userObj.toJson()));
+        state = state.copyWith(user: userObj);
+      } else if (response.statusCode == 401) {
+        // Explicit 401 Unauthorized: token has expired or revoked on server
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('jwt_token');
+        await prefs.remove('cached_user');
+        state = AuthState(isAuthenticated: false, isLoading: false);
       }
-    } catch (_) {
-      state = state.copyWith(isAuthenticated: false, isLoading: false);
+    } catch (e) {
+      // Network timeout / Render cold-start / Offline: DO NOT log the user out!
+      // Keep local session valid so the user can continue using the app.
+      debugPrint('Background session verification deferred: $e');
     }
   }
 
@@ -84,6 +118,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         final userObj = UserModel.fromJson(response.data['user']);
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('jwt_token', token);
+        await prefs.setString('cached_user', jsonEncode(userObj.toJson()));
 
         state = AuthState(
           isAuthenticated: true,
@@ -131,6 +166,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         final userObj = UserModel.fromJson(response.data['user']);
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('jwt_token', token);
+        await prefs.setString('cached_user', jsonEncode(userObj.toJson()));
 
         state = AuthState(
           isAuthenticated: true,
@@ -171,6 +207,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (_) {}
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('jwt_token');
+    await prefs.remove('cached_user');
     state = AuthState(isAuthenticated: false, isLoading: false);
   }
 

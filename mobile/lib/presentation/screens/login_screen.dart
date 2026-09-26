@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/security/biometric_service.dart';
 import '../providers/auth_provider.dart';
 
 /// Purpose: Login Screen
@@ -29,7 +30,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final success = await ref.read(authProvider.notifier).login(email, password);
 
     if (success && mounted) {
-      context.go('/dashboard');
+      final bioAvailable = await BiometricService.isBiometricsAvailable();
+      if (bioAvailable) {
+        await BiometricService.setBiometricEnabled(true);
+      }
+      if (mounted) context.go('/dashboard');
     }
   }
 

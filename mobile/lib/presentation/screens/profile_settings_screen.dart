@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/security/biometric_service.dart';
 import '../providers/auth_provider.dart';
 import '../providers/user_provider.dart';
 
@@ -18,10 +19,25 @@ class ProfileSettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
+  bool _biometricAvailable = false;
+  bool _biometricEnabled = false;
+
   @override
   void initState() {
     super.initState();
     ref.read(userProvider.notifier).fetchProfile();
+    _loadBiometricSettings();
+  }
+
+  Future<void> _loadBiometricSettings() async {
+    final available = await BiometricService.isBiometricsAvailable();
+    final enabled = await BiometricService.isBiometricEnabled();
+    if (mounted) {
+      setState(() {
+        _biometricAvailable = available;
+        _biometricEnabled = enabled;
+      });
+    }
   }
 
   void _showEditProfileSheet() {
@@ -274,6 +290,28 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
                       trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.onSurfaceVariant),
                       onTap: () => context.push('/mpin-setup'),
                     ),
+                    if (_biometricAvailable) ...[
+                      Divider(height: 1, color: AppColors.outlineVariant.withOpacity(0.3)),
+                      SwitchListTile(
+                        secondary: const Icon(Icons.fingerprint_rounded, color: AppColors.primary),
+                        title: Text('Fingerprint / Biometric Unlock', style: GoogleFonts.outfit(color: AppColors.onSurface, fontWeight: FontWeight.w600)),
+                        subtitle: Text('Unlock quickly with fingerprint or face', style: GoogleFonts.outfit(color: AppColors.onSurfaceVariant, fontSize: 11)),
+                        value: _biometricEnabled,
+                        activeColor: AppColors.primaryViolet,
+                        onChanged: (val) async {
+                          if (val) {
+                            final ok = await BiometricService.authenticate(
+                              reason: 'Verify your fingerprint to enable biometric unlock',
+                            );
+                            if (!ok) return;
+                          }
+                          await BiometricService.setBiometricEnabled(val);
+                          if (mounted) {
+                            setState(() => _biometricEnabled = val);
+                          }
+                        },
+                      ),
+                    ],
                     Divider(height: 1, color: AppColors.outlineVariant.withOpacity(0.3)),
                     ListTile(
                       leading: const Icon(Icons.category_outlined, color: AppColors.primary),

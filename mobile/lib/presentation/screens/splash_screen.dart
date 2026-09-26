@@ -10,6 +10,7 @@ import '../providers/auth_provider.dart';
 /// Design System: Stitch Finance Hub Enterprise
 
 import '../../core/security/mpin_service.dart';
+import '../../core/security/biometric_service.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -26,18 +27,52 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _navigateNext() async {
-    await Future.delayed(const Duration(milliseconds: 1200));
+    // 1. Await both minimum splash animation duration and local session check
+    await Future.wait([
+      Future.delayed(const Duration(milliseconds: 800)),
+      ref.read(authProvider.notifier).checkSession(),
+    ]);
     if (!mounted) return;
+
     final authState = ref.read(authProvider);
-    if (authState.isAuthenticated) {
+    debugPrint('[SPLASH] Session check: isAuthenticated=${authState.isAuthenticated}, user=${authState.user?.name}');
+
+    if (!authState.isAuthenticated) {
+      context.go('/login');
+      return;
+    }
+
+    // 2. User is authenticated locally. Check biometric unlock
+    final isBioAvailable = await BiometricService.isBiometricsAvailable();
+    final isBioEnabled = await BiometricService.isBiometricEnabled();
+    debugPrint('[SPLASH] Biometrics check: available=$isBioAvailable, enabled=$isBioEnabled');
+
+    if (isBioAvailable && isBioEnabled && mounted) {
+      final authenticated = await BiometricService.authenticate(
+        reason: 'Touch fingerprint sensor to unlock Finance Hub',
+      );
+      debugPrint('[SPLASH] Biometric authenticate result: $authenticated');
+      if (authenticated && mounted) {
+        context.go('/dashboard');
+        return;
+      }
+
+      // If biometric was cancelled or failed by user:
       final hasMpin = await MpinService.hasMpin();
       if (hasMpin && mounted) {
         context.go('/mpin');
       } else if (mounted) {
-        context.go('/dashboard');
+        context.go('/login');
       }
-    } else {
-      context.go('/login');
+      return;
+    }
+
+    // 3. If biometrics not enabled or not available on device:
+    final hasMpin = await MpinService.hasMpin();
+    if (hasMpin && mounted) {
+      context.go('/mpin');
+    } else if (mounted) {
+      context.go('/dashboard');
     }
   }
 

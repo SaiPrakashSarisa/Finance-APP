@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/security/mpin_service.dart';
+import '../../../core/security/biometric_service.dart';
 
 enum MpinMode { setup, verify }
 
@@ -27,6 +28,36 @@ class _MpinScreenState extends State<MpinScreen> {
   bool _isConfirming = false;
   String? _errorMessage;
   bool _isLoading = false;
+  bool _canUseBiometrics = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometrics();
+  }
+
+  Future<void> _checkBiometrics() async {
+    if (widget.mode == MpinMode.verify) {
+      final available = await BiometricService.isBiometricsAvailable();
+      final enabled = await BiometricService.isBiometricEnabled();
+      if (mounted) {
+        setState(() => _canUseBiometrics = available && enabled);
+      }
+    }
+  }
+
+  Future<void> _triggerBiometricUnlock() async {
+    final success = await BiometricService.authenticate(
+      reason: 'Scan your fingerprint to unlock Finance Hub',
+    );
+    if (success && mounted) {
+      if (widget.onSuccess != null) {
+        widget.onSuccess!();
+      } else {
+        context.go('/dashboard');
+      }
+    }
+  }
 
   void _onKeyPress(String val) {
     if (_enteredPin.length < 4) {
@@ -219,7 +250,14 @@ class _MpinScreenState extends State<MpinScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    const SizedBox(width: 72), // Empty placeholder for symmetry
+                    if (_canUseBiometrics)
+                      IconButton(
+                        onPressed: _triggerBiometricUnlock,
+                        icon: const Icon(Icons.fingerprint_rounded, color: Color(0xFF818CF8), size: 36),
+                        tooltip: 'Unlock with Fingerprint',
+                      )
+                    else
+                      const SizedBox(width: 72),
                     _buildKeypadButton('0'),
                     IconButton(
                       onPressed: _onBackspace,

@@ -57,4 +57,16 @@ class UserModel {
           : UserSettingsModel(dashboardRange: '1m', budgetEnabled: true),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'phone': phone,
+      'countryCode': countryCode,
+      'profilePicture': profilePicture,
+      'settings': settings.toJson(),
+    };
+  }
 }
