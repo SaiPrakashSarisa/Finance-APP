@@ -11,22 +11,23 @@ class ApiClient {
   late final Dio dio;
   static final _uuid = const Uuid();
 
-  static List<String> get fallbackUrls => [
-        ApiEndpoints.localBaseUrl, // http://localhost:5001/api (iOS, Web, ADB reverse)
-        'http://127.0.0.1:5001/api', // http://127.0.0.1:5001/api
-        ApiEndpoints.physicalDeviceBaseUrl, // http://192.168.1.5:5001/api (Wi-Fi)
-        ApiEndpoints.baseUrl, // http://10.0.2.2:5001/api (Android Emulator)
-      ];
+  static List<String> get fallbackUrls {
+    if (kReleaseMode) {
+      return [ApiEndpoints.productionBaseUrl];
+    }
+    return [
+      ApiEndpoints.baseUrl,
+      ApiEndpoints.localBaseUrl, // http://localhost:5001/api (iOS, Web, ADB reverse)
+      'http://127.0.0.1:5001/api', // http://127.0.0.1:5001/api
+      ApiEndpoints.physicalDeviceBaseUrl, // http://192.168.1.5:5001/api (Wi-Fi)
+      ApiEndpoints.emulatorBaseUrl, // http://10.0.2.2:5001/api (Android Emulator)
+    ];
+  }
 
   static String _activeBaseUrl = ApiEndpoints.baseUrl;
 
   ApiClient({String? customBaseUrl}) {
-    final initialUrl = customBaseUrl ??
-        (kIsWeb ||
-                defaultTargetPlatform == TargetPlatform.iOS ||
-                defaultTargetPlatform == TargetPlatform.macOS
-            ? ApiEndpoints.localBaseUrl
-            : _activeBaseUrl);
+    final initialUrl = customBaseUrl ?? _activeBaseUrl;
 
     dio = Dio(
       BaseOptions(

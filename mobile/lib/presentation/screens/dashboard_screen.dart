@@ -24,6 +24,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   final currencyFormatter = NumberFormat.currency(symbol: '₹', decimalDigits: 2, locale: 'en_IN');
+  bool _isBalanceVisible = true;
 
   @override
   void initState() {
@@ -222,97 +223,167 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         : dynamicExpense;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _refreshData,
-          color: AppColors.primary,
-          backgroundColor: AppColors.surfaceContainerHigh,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top Header Section
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const LinearGradient(
-                              colors: [AppColors.primaryViolet, AppColors.primaryContainer],
+      backgroundColor: const Color(0xFF090D1A),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(-0.8, -0.65),
+            radius: 1.5,
+            colors: [
+              Color(0xFF161936),
+              Color(0xFF090D1A),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: _refreshData,
+            color: AppColors.primary,
+            backgroundColor: AppColors.surfaceContainerHigh,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top Header Section
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF8083FF), Color(0xFF6366F1)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              border: Border.all(color: const Color(0x33FFFFFF)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF6366F1).withOpacity(0.35),
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
                             ),
-                            border: Border.all(color: AppColors.primary.withOpacity(0.4)),
+                            child: Center(
+                              child: Text(
+                                userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
                           ),
-                          child: Center(
-                            child: Text(
-                              userName.isNotEmpty ? userName[0].toUpperCase() : 'U',
-                              style: GoogleFonts.outfit(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'WELCOME BACK,',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF908FA0),
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$userName 👋',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: _refreshData,
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF131828),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: const Color(0x26FFFFFF)),
+                              ),
+                              child: const Icon(
+                                Icons.refresh_rounded,
                                 color: Colors.white,
+                                size: 20,
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Welcome back,',
-                              style: GoogleFonts.outfit(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.onSurfaceVariant,
-                                letterSpacing: 0.5,
-                              ),
+                          const SizedBox(width: 10),
+                          GestureDetector(
+                            onTap: _showNotificationsSheet,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF131828),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(color: const Color(0x26FFFFFF)),
+                                  ),
+                                  child: const Icon(
+                                    Icons.notifications_none_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 1,
+                                  right: 1,
+                                  child: Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFF3366),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: const Color(0xFF090D1A), width: 1.5),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            Text(
-                              '$userName 👋',
-                              style: GoogleFonts.outfit(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.onSurface,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.refresh_rounded, color: AppColors.onSurfaceVariant),
-                          onPressed: _refreshData,
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.notifications_none_rounded, color: AppColors.onSurfaceVariant),
-                          onPressed: () {},
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
 
-                // Hero Net Worth Card
+                // Hero Total Net Worth Card (Enhanced)
                 Container(
-                  padding: const EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(22),
                   decoration: BoxDecoration(
-                    color: AppColors.glassPanelBg,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.glassBorder),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF131B2E), Color(0xFF1A2238)],
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0x1FFFFFFF)),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.primaryViolet.withOpacity(0.12),
-                        blurRadius: 24,
+                        color: const Color(0xFF6366F1).withOpacity(0.15),
+                        blurRadius: 28,
                         offset: const Offset(0, 8),
                       ),
                     ],
@@ -323,78 +394,111 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Total Net Worth',
-                            style: GoogleFonts.outfit(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.onSurfaceVariant,
-                            ),
+                          Row(
+                            children: [
+                              Text(
+                                'Total Net Worth',
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: const Color(0xFFC7C4D7),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _isBalanceVisible = !_isBalanceVisible;
+                                  });
+                                },
+                                child: Icon(
+                                  _isBalanceVisible ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                  size: 18,
+                                  color: const Color(0xFFC7C4D7),
+                                ),
+                              ),
+                            ],
                           ),
-                          Icon(Icons.visibility_outlined, size: 18, color: AppColors.onSurfaceVariant),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Text(
-                            currencyFormatter.format(accountState.netWorth),
-                            style: GoogleFonts.outfit(
-                              fontSize: 30,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.onSurface,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: AppColors.incomeEmerald.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(6),
+                              color: const Color(0xFF003824),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: const Color(0xFF00A572).withOpacity(0.35)),
                             ),
                             child: Text(
                               '▲ Active',
                               style: GoogleFonts.outfit(
-                                fontSize: 10,
+                                fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.incomeEmerald,
+                                color: const Color(0xFF4EDEA3),
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      // Monthly Income vs Expense Summary Pills
+                      const SizedBox(height: 12),
+                      Text(
+                        _isBalanceVisible ? currencyFormatter.format(accountState.netWorth) : '₹ ••••••••',
+                        style: GoogleFonts.outfit(
+                          fontSize: 32,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      // Nested Income & Expense Cards
                       Row(
                         children: [
+                          // Income Card
                           Expanded(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                               decoration: BoxDecoration(
-                                color: AppColors.incomeEmerald.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.incomeEmerald.withOpacity(0.25)),
+                                color: const Color(0xFF0D1B22),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: const Color(0xFF00A572).withOpacity(0.35)),
                               ),
                               child: Row(
                                 children: [
-                                  const Icon(Icons.arrow_downward_rounded, color: AppColors.incomeEmerald, size: 16),
-                                  const SizedBox(width: 8),
+                                  Container(
+                                    width: 34,
+                                    height: 34,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF003824),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.arrow_downward_rounded,
+                                      color: Color(0xFF4EDEA3),
+                                      size: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'Income',
-                                          style: GoogleFonts.outfit(fontSize: 10, color: AppColors.onSurfaceVariant),
+                                          'INCOME',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFF4EDEA3),
+                                            letterSpacing: 0.5,
+                                          ),
                                         ),
+                                        const SizedBox(height: 2),
                                         Text(
                                           currencyFormatter.format(displayIncome),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.incomeEmerald),
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w800,
+                                            color: const Color(0xFF4EDEA3),
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -403,32 +507,55 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 12),
+                          // Expense Card
                           Expanded(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                               decoration: BoxDecoration(
-                                color: AppColors.expenseRose.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.expenseRose.withOpacity(0.25)),
+                                color: const Color(0xFF1D1219),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: const Color(0xFFFF516A).withOpacity(0.35)),
                               ),
                               child: Row(
                                 children: [
-                                  const Icon(Icons.arrow_upward_rounded, color: AppColors.expenseRose, size: 16),
-                                  const SizedBox(width: 8),
+                                  Container(
+                                    width: 34,
+                                    height: 34,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF380812),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.arrow_upward_rounded,
+                                      color: Color(0xFFFF516A),
+                                      size: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          'Expense',
-                                          style: GoogleFonts.outfit(fontSize: 10, color: AppColors.onSurfaceVariant),
+                                          'EXPENSE',
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFFFF516A),
+                                            letterSpacing: 0.5,
+                                          ),
                                         ),
+                                        const SizedBox(height: 2),
                                         Text(
                                           currencyFormatter.format(displayExpense),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.expenseRose),
+                                          style: GoogleFonts.outfit(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w800,
+                                            color: const Color(0xFFFF516A),
+                                          ),
                                         ),
                                       ],
                                     ),
@@ -444,7 +571,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Accounts Section
+                // My Accounts Section
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -453,23 +580,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       style: GoogleFonts.outfit(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.onSurface,
+                        color: Colors.white,
                       ),
                     ),
-                    TextButton(
-                      onPressed: () => context.push('/accounts'),
+                    GestureDetector(
+                      onTap: () => context.push('/accounts'),
                       child: Text(
                         'View All',
                         style: GoogleFonts.outfit(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
                           color: AppColors.primary,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 if (!accountState.isLoading && accountState.accounts.isEmpty)
                   GestureDetector(
                     onTap: _showAddAccountDialog,
@@ -477,9 +604,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
                       decoration: BoxDecoration(
-                        color: AppColors.surfaceContainer,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.glassBorder),
+                        color: const Color(0xFF131B2E),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0x1AFFFFFF)),
                       ),
                       child: Row(
                         children: [
@@ -502,14 +629,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   style: GoogleFonts.outfit(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
-                                    color: AppColors.onSurface,
+                                    color: Colors.white,
                                   ),
                                 ),
+                                const SizedBox(height: 2),
                                 Text(
                                   'Tap here to add your first Bank, Cash, or Savings account',
                                   style: GoogleFonts.outfit(
                                     fontSize: 12,
-                                    color: AppColors.onSurfaceVariant,
+                                    color: const Color(0xFF908FA0),
                                   ),
                                 ),
                               ],
@@ -522,7 +650,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   )
                 else
                   SizedBox(
-                    height: 120,
+                    height: 135,
                     child: accountState.isLoading
                         ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
                         : ListView.separated(
@@ -549,23 +677,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       style: GoogleFonts.outfit(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.onSurface,
+                        color: Colors.white,
                       ),
                     ),
-                    TextButton(
-                      onPressed: () => context.go('/transactions'),
+                    GestureDetector(
+                      onTap: () => context.go('/transactions'),
                       child: Text(
                         'View All',
                         style: GoogleFonts.outfit(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
                           color: AppColors.primary,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 if (transactionState.isLoading)
                   const Center(
                     child: Padding(
@@ -576,19 +704,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 else if (transactionState.transactions.isEmpty)
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(28),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceContainer,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.glassBorder),
+                      color: const Color(0xFF131B2E),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: const Color(0x1AFFFFFF)),
                     ),
                     child: Column(
                       children: [
-                        const Icon(Icons.receipt_long_outlined, size: 40, color: AppColors.outline),
-                        const SizedBox(height: 8),
+                        const Icon(Icons.receipt_long_outlined, size: 40, color: Color(0xFF908FA0)),
+                        const SizedBox(height: 10),
                         Text(
                           'No recent transactions',
-                          style: GoogleFonts.outfit(fontSize: 14, color: AppColors.onSurfaceVariant),
+                          style: GoogleFonts.outfit(fontSize: 14, color: const Color(0xFF908FA0)),
                         ),
                       ],
                     ),
@@ -596,15 +724,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 else
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceContainer,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.glassBorder),
+                      color: const Color(0xFF131B2E),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: const Color(0x1AFFFFFF)),
                     ),
                     child: ListView.separated(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: transactionState.transactions.take(5).length,
-                      separatorBuilder: (_, __) => Divider(height: 1, color: AppColors.outlineVariant.withOpacity(0.3)),
+                      separatorBuilder: (_, __) => const Divider(height: 1, thickness: 1, color: Color(0x14FFFFFF)),
                       itemBuilder: (context, index) {
                         final tx = transactionState.transactions[index];
                         return _buildTransactionTile(tx);
@@ -617,59 +745,204 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ),
       ),
+    ),
+  );
+}
+
+  void _showNotificationsSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF131B2E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF908FA0).withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Notifications & Insights',
+                    style: GoogleFonts.outfit(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF516A).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '3 New',
+                      style: GoogleFonts.outfit(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFFFF516A),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildNotificationItem(
+                icon: Icons.subscriptions_outlined,
+                iconColor: const Color(0xFFC0C1FF),
+                title: 'Recurring Subscriptions Detected',
+                desc: 'WiFi, Rent, and other subscriptions are scheduled for this cycle.',
+                time: 'Today',
+              ),
+              const SizedBox(height: 12),
+              _buildNotificationItem(
+                icon: Icons.trending_up_rounded,
+                iconColor: const Color(0xFF4EDEA3),
+                title: 'Monthly Savings Active',
+                desc: 'Your cash flow is positive. Keep tracking expenses accurately!',
+                time: 'Yesterday',
+              ),
+              const SizedBox(height: 12),
+              _buildNotificationItem(
+                icon: Icons.security_rounded,
+                iconColor: const Color(0xFF06B6D4),
+                title: 'End-to-End Vault Secured',
+                desc: 'All device communications are pinned & idempotently secured.',
+                time: '2 days ago',
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildNotificationItem({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String desc,
+    required String time,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: iconColor.withOpacity(0.15),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: iconColor, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: GoogleFonts.outfit(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    time,
+                    style: GoogleFonts.outfit(
+                      fontSize: 11,
+                      color: const Color(0xFF908FA0),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                desc,
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  color: const Color(0xFFC7C4D7),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildAccountCard(AccountModel acc) {
-    final isCreditCard = acc.type == 'credit_card';
     final isCash = acc.type == 'cash';
-    final isSavings = acc.type == 'savings';
+    final isCreditCard = acc.type == 'credit_card';
+    final isBank = acc.type == 'bank';
 
-    final Gradient cardGradient = isCreditCard
+    final Gradient cardGradient = isCash
         ? const LinearGradient(
-            colors: [Color(0xFF4C0519), Color(0xFFBE123C)],
+            colors: [Color(0xFF045D3B), Color(0xFF10B981)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           )
-        : isCash
+        : isCreditCard
             ? const LinearGradient(
-                colors: [Color(0xFF064E3B), Color(0xFF059669)],
+                colors: [Color(0xFF4C0519), Color(0xFFBE123C)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               )
-            : isSavings
-                ? const LinearGradient(
-                    colors: [Color(0xFF164E63), Color(0xFF0891B2)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : const LinearGradient(
-                    colors: [Color(0xFF1E1B4B), Color(0xFF4F46E5)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  );
+            : const LinearGradient(
+                colors: [Color(0xFF26297D), Color(0xFF4F46E5)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              );
 
-    final IconData typeIcon = acc.type == 'bank'
-        ? Icons.account_balance_rounded
-        : acc.type == 'credit_card'
-            ? Icons.credit_card_rounded
-            : acc.type == 'cash'
-                ? Icons.payments_rounded
-                : acc.type == 'savings'
-                    ? Icons.savings_rounded
-                    : Icons.account_balance_wallet_rounded;
+    final String badgeText = isCash
+        ? 'CASH'
+        : isCreditCard
+            ? 'CREDIT'
+            : isBank
+                ? 'BANK'
+                : acc.type.toUpperCase();
+
+    final Color badgeColor = isCash
+        ? const Color(0xFF6FFBBE)
+        : isCreditCard
+            ? const Color(0xFFFFB2B7)
+            : const Color(0xFFC0C1FF);
 
     return Container(
-      width: 210,
+      width: 175,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: cardGradient,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(0.35),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -681,22 +954,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.black.withOpacity(0.28),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  acc.type.toUpperCase().replaceAll('_', ' '),
+                  badgeText,
                   style: GoogleFonts.outfit(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: badgeColor,
                     letterSpacing: 0.5,
                   ),
                 ),
               ),
-              Icon(typeIcon, size: 20, color: Colors.white.withOpacity(0.9)),
+              if (isCash)
+                Icon(Icons.account_balance_wallet_outlined, size: 20, color: badgeColor)
+              else if (isBank)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.contactless_outlined, size: 17, color: badgeColor),
+                    const SizedBox(width: 4),
+                    Icon(Icons.account_balance_outlined, size: 18, color: badgeColor),
+                  ],
+                )
+              else
+                Icon(Icons.credit_card_rounded, size: 20, color: badgeColor),
             ],
           ),
           Column(
@@ -707,17 +992,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.outfit(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white.withOpacity(0.85),
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 3),
               Text(
                 currencyFormatter.format(acc.balance),
                 style: GoogleFonts.outfit(
                   fontSize: 17,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
                   color: Colors.white,
                 ),
               ),
@@ -732,11 +1017,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return GestureDetector(
       onTap: _showAddAccountDialog,
       child: Container(
-        width: 120,
+        width: 130,
         decoration: BoxDecoration(
-          color: AppColors.surfaceContainerLow.withOpacity(0.6),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.glassBorder, style: BorderStyle.solid),
+          color: const Color(0xFF131B2E),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0x1FFFFFFF)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -744,7 +1029,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.primaryViolet.withOpacity(0.15),
+                color: AppColors.primaryViolet.withOpacity(0.18),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.add_rounded, color: AppColors.primary, size: 24),
@@ -755,12 +1040,84 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               style: GoogleFonts.outfit(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: AppColors.onSurfaceVariant,
+                color: const Color(0xFF908FA0),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTransactionIcon(TransactionModel tx) {
+    final note = (tx.note ?? '').toLowerCase();
+    final cat = (tx.categoryName ?? '').toLowerCase();
+    final isIncome = tx.type == 'income';
+    final isTransfer = tx.type == 'transfer';
+
+    Color bgColor;
+    Color iconColor;
+    IconData icon;
+
+    if (isIncome) {
+      bgColor = const Color(0xFF073322);
+      iconColor = const Color(0xFF4EDEA3);
+      icon = Icons.arrow_downward_rounded;
+    } else if (isTransfer) {
+      bgColor = const Color(0xFF202352);
+      iconColor = const Color(0xFF8083FF);
+      icon = Icons.swap_horiz_rounded;
+    } else if (note.contains('subscri') ||
+        cat.contains('subscri') ||
+        note.contains('netflix') ||
+        note.contains('spotify') ||
+        cat.contains('entertain')) {
+      bgColor = const Color(0xFF252654);
+      iconColor = const Color(0xFFC0C1FF);
+      icon = Icons.play_arrow_rounded;
+    } else if (note.contains('brick') ||
+        note.contains('tool') ||
+        note.contains('repair') ||
+        note.contains('construct') ||
+        cat.contains('repair') ||
+        cat.contains('fuel')) {
+      bgColor = const Color(0xFF382914);
+      iconColor = const Color(0xFFF59E0B);
+      icon = Icons.construction_rounded;
+    } else if (note.contains('bag') ||
+        note.contains('pack') ||
+        note.contains('shop') ||
+        cat.contains('shop') ||
+        cat.contains('grocer') ||
+        note.contains('market')) {
+      bgColor = const Color(0xFF0E303D);
+      iconColor = const Color(0xFF06B6D4);
+      icon = Icons.inventory_2_outlined;
+    } else if (note.contains('homam') ||
+        note.contains('temple') ||
+        note.contains('tent') ||
+        note.contains('rent') ||
+        cat.contains('hous') ||
+        cat.contains('charit') ||
+        cat.contains('person')) {
+      bgColor = const Color(0xFF38141F);
+      iconColor = const Color(0xFFFF516A);
+      icon = Icons.account_balance_outlined;
+    } else {
+      bgColor = const Color(0xFF222A3D);
+      iconColor = const Color(0xFFDAE2FD);
+      icon = Icons.credit_card_outlined;
+    }
+
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: bgColor,
+        shape: BoxShape.circle,
+        border: Border.all(color: iconColor.withOpacity(0.2)),
+      ),
+      child: Icon(icon, color: iconColor, size: 20),
     );
   }
 
@@ -770,61 +1127,56 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final isCreditRepay = tx.type == 'credit_repay';
 
     final Color amountColor = isIncome
-        ? AppColors.incomeEmerald
-        : isTransfer
-            ? AppColors.transferAmber
-            : isCreditRepay
-                ? AppColors.creditCyan
-                : AppColors.expenseRose;
+        ? const Color(0xFF4EDEA3)
+        : (isTransfer || isCreditRepay)
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFFFF516A);
 
     final String prefix = isIncome ? '+' : (isTransfer || isCreditRepay) ? '' : '-';
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerHigh,
-          shape: BoxShape.circle,
-          border: Border.all(color: AppColors.glassBorder),
-        ),
-        child: Icon(
-          isIncome
-              ? Icons.arrow_downward_rounded
-              : isTransfer
-                  ? Icons.swap_horiz_rounded
-                  : isCreditRepay
-                      ? Icons.handshake_outlined
-                      : Icons.shopping_bag_outlined,
-          color: amountColor,
-          size: 20,
-        ),
-      ),
-      title: Text(
-        tx.note != null && tx.note!.isNotEmpty
-            ? tx.note!
-            : (tx.categoryName ?? (isTransfer ? 'Transfer' : 'Expense')),
-        style: GoogleFonts.outfit(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: AppColors.onSurface,
-        ),
-      ),
-      subtitle: Text(
-        '${tx.accountName ?? 'Account'} • ${tx.date.length >= 10 ? tx.date.substring(0, 10) : tx.date}',
-        style: GoogleFonts.outfit(
-          fontSize: 11,
-          color: AppColors.onSurfaceVariant,
-        ),
-      ),
-      trailing: Text(
-        '$prefix ${currencyFormatter.format(tx.amount)}',
-        style: GoogleFonts.outfit(
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          color: amountColor,
-        ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          _buildTransactionIcon(tx),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tx.note != null && tx.note!.isNotEmpty
+                      ? tx.note!
+                      : (tx.categoryName ?? (isTransfer ? 'Transfer' : 'Expense')),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.outfit(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${tx.accountName ?? 'Account'} • ${tx.date.length >= 10 ? tx.date.substring(0, 10) : tx.date}',
+                  style: GoogleFonts.outfit(
+                    fontSize: 11,
+                    color: const Color(0xFF908FA0),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            '$prefix ${currencyFormatter.format(tx.amount)}',
+            style: GoogleFonts.outfit(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: amountColor,
+            ),
+          ),
+        ],
       ),
     );
   }

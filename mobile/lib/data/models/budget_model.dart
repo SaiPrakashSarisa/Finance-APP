@@ -25,16 +25,50 @@ class CategoryBudgetSummaryModel {
   });
 
   factory CategoryBudgetSummaryModel.fromJson(Map<String, dynamic> json) {
+    // Backend populates 'category': { _id, name, color, icon }
+    final categoryObj = json['category'];
+    String catId = '';
+    String catName = '';
+    String catColor = '#6366f1';
+    String catIcon = 'folder';
+
+    if (categoryObj is Map<String, dynamic>) {
+      catId = categoryObj['_id']?.toString() ?? '';
+      catName = categoryObj['name']?.toString() ?? '';
+      catColor = categoryObj['color']?.toString() ?? '#6366f1';
+      catIcon = categoryObj['icon']?.toString() ?? 'folder';
+    } else if (categoryObj is String) {
+      catId = categoryObj;
+    }
+
+    if (catId.isEmpty) {
+      catId = json['categoryId']?.toString() ?? '';
+    }
+    if (catName.isEmpty) {
+      catName = json['categoryName']?.toString() ?? '';
+    }
+    if (json['categoryColor'] != null) {
+      catColor = json['categoryColor'].toString();
+    }
+    if (json['categoryIcon'] != null) {
+      catIcon = json['categoryIcon'].toString();
+    }
+
+    final amt = (json['amount'] ?? json['budgetAmount'] as num?)?.toDouble() ?? 0.0;
+    final sp = (json['spent'] as num?)?.toDouble() ?? 0.0;
+    final rem = (json['remaining'] as num?)?.toDouble() ?? (amt - sp);
+    final pct = (json['percentage'] as num?)?.toDouble() ?? (amt > 0 ? (sp / amt) * 100 : 0.0);
+
     return CategoryBudgetSummaryModel(
-      categoryId: json['categoryId'] ?? '',
-      categoryName: json['categoryName'] ?? '',
-      categoryColor: json['categoryColor'] ?? '#6366f1',
-      categoryIcon: json['categoryIcon'] ?? '📁',
-      budgetId: json['budgetId'],
-      budgetAmount: (json['budgetAmount'] as num?)?.toDouble() ?? 0.0,
-      spent: (json['spent'] as num?)?.toDouble() ?? 0.0,
-      remaining: (json['remaining'] as num?)?.toDouble() ?? 0.0,
-      percentage: (json['percentage'] as num?)?.toDouble() ?? 0.0,
+      categoryId: catId,
+      categoryName: catName,
+      categoryColor: catColor,
+      categoryIcon: catIcon,
+      budgetId: json['_id']?.toString() ?? json['budgetId']?.toString(),
+      budgetAmount: amt,
+      spent: sp,
+      remaining: rem,
+      percentage: pct,
     );
   }
 }
@@ -52,17 +86,51 @@ class BudgetSummaryModel {
     required this.categories,
   });
 
-  factory BudgetSummaryModel.fromJson(Map<String, dynamic> json) {
-    final catList = (json['categories'] as List<dynamic>?)
-            ?.map((c) => CategoryBudgetSummaryModel.fromJson(c))
-            .toList() ??
-        [];
+  factory BudgetSummaryModel.fromJson(dynamic data) {
+    if (data is List) {
+      // Backend returns a List of populated budget items
+      final catList = data
+          .whereType<Map<String, dynamic>>()
+          .map((c) => CategoryBudgetSummaryModel.fromJson(c))
+          .toList();
+
+      final totalBud = catList.fold<double>(0.0, (sum, c) => sum + c.budgetAmount);
+      final totalSp = catList.fold<double>(0.0, (sum, c) => sum + c.spent);
+      final overallPct = totalBud > 0 ? (totalSp / totalBud) * 100 : 0.0;
+
+      return BudgetSummaryModel(
+        totalBudgeted: totalBud,
+        totalSpent: totalSp,
+        overallPercentage: overallPct,
+        categories: catList,
+      );
+    } else if (data is Map<String, dynamic>) {
+      final catList = (data['categories'] as List<dynamic>?)
+              ?.whereType<Map<String, dynamic>>()
+              .map((c) => CategoryBudgetSummaryModel.fromJson(c))
+              .toList() ??
+          [];
+
+      final totalBud = (data['totalBudgeted'] as num?)?.toDouble() ??
+          catList.fold<double>(0.0, (sum, c) => sum + c.budgetAmount);
+      final totalSp = (data['totalSpent'] as num?)?.toDouble() ??
+          catList.fold<double>(0.0, (sum, c) => sum + c.spent);
+      final overallPct = (data['overallPercentage'] as num?)?.toDouble() ??
+          (totalBud > 0 ? (totalSp / totalBud) * 100 : 0.0);
+
+      return BudgetSummaryModel(
+        totalBudgeted: totalBud,
+        totalSpent: totalSp,
+        overallPercentage: overallPct,
+        categories: catList,
+      );
+    }
 
     return BudgetSummaryModel(
-      totalBudgeted: (json['totalBudgeted'] as num?)?.toDouble() ?? 0.0,
-      totalSpent: (json['totalSpent'] as num?)?.toDouble() ?? 0.0,
-      overallPercentage: (json['overallPercentage'] as num?)?.toDouble() ?? 0.0,
-      categories: catList,
+      totalBudgeted: 0.0,
+      totalSpent: 0.0,
+      overallPercentage: 0.0,
+      categories: [],
     );
   }
 }

@@ -161,38 +161,46 @@ class _MainShellScreenState extends State<MainShellScreen> {
         index: _currentIndex,
         children: _screens,
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showQuickActionSheet,
-        backgroundColor: AppColors.primaryViolet,
-        elevation: 6,
-        shape: const CircleBorder(),
-        child: Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primaryViolet.withOpacity(0.4),
-                blurRadius: 16,
-                spreadRadius: 2,
-              ),
-            ],
+      floatingActionButton: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            colors: [Color(0xFF818CF8), Color(0xFF6366F1)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF6366F1).withOpacity(0.5),
+              blurRadius: 18,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(28),
+            onTap: _showQuickActionSheet,
+            child: const Center(
+              child: Icon(Icons.add_rounded, color: Colors.white, size: 30),
+            ),
+          ),
         ),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: AppColors.background.withOpacity(0.85),
+          color: const Color(0xFF0C101F).withOpacity(0.96),
           border: const Border(
-            top: BorderSide(color: AppColors.glassBorder),
+            top: BorderSide(color: Color(0x1AFFFFFF)),
           ),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primaryViolet.withOpacity(0.08),
-              blurRadius: 20,
-              offset: const Offset(0, -4),
+              color: Colors.black.withOpacity(0.5),
+              blurRadius: 24,
+              offset: const Offset(0, -6),
             ),
           ],
         ),
@@ -206,8 +214,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
           backgroundColor: Colors.transparent,
           elevation: 0,
           type: BottomNavigationBarType.fixed,
-          selectedItemColor: AppColors.primary,
-          unselectedItemColor: AppColors.onSurfaceVariant,
+          selectedItemColor: Colors.white,
+          unselectedItemColor: const Color(0xFF64748B),
           selectedLabelStyle: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w600),
           unselectedLabelStyle: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w500),
           items: const [

@@ -1,23 +1,41 @@
+import 'package:flutter/foundation.dart';
+
 /// Purpose: Centralized API Endpoints Configuration for Flutter App
 /// Author: Antigravity AI
 
 class ApiEndpoints {
-  // Base URLs - Configurable via --dart-define=API_BASE_URL=...
-  static const String _envBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:5001/api',
-  );
+  // Production Render Backend URL
+  static const String productionBaseUrl = 'https://finance-app-axlj.onrender.com/api';
 
-  static const String localBaseUrl = 'http://localhost:5001/api'; // iOS Simulator & Web
+  // Development Base URLs
+  static const String localBaseUrl = 'http://localhost:5001/api'; // iOS Simulator, Web, ADB reverse
   static const String physicalDeviceBaseUrl = 'http://192.168.1.5:5001/api'; // Physical Phone on Local Wi-Fi
+  static const String emulatorBaseUrl = 'http://10.0.2.2:5001/api'; // Android Emulator
 
+  // Explicit override via --dart-define=API_BASE_URL=...
+  static const String _envBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+  /// Resolves the active base URL automatically:
+  /// - If an explicit `--dart-define=API_BASE_URL=...` is passed, it takes precedence.
+  /// - When building for production (release APK / bundle), it automatically uses [productionBaseUrl].
+  /// - When building for development (debug mode / flutter run), it automatically uses [localBaseUrl].
   static String get baseUrl {
-    if (_envBaseUrl.endsWith('/api')) {
-      return _envBaseUrl;
-    } else if (_envBaseUrl.endsWith('/')) {
-      return '${_envBaseUrl}api';
+    if (_envBaseUrl.isNotEmpty) {
+      return _normalizeUrl(_envBaseUrl);
+    }
+    if (kReleaseMode) {
+      return productionBaseUrl;
+    }
+    return localBaseUrl;
+  }
+
+  static String _normalizeUrl(String url) {
+    if (url.endsWith('/api')) {
+      return url;
+    } else if (url.endsWith('/')) {
+      return '${url}api';
     } else {
-      return '$_envBaseUrl/api';
+      return '$url/api';
     }
   }
 

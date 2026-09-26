@@ -13,6 +13,7 @@ import '../providers/analytics_provider.dart';
 import '../../data/models/budget_model.dart';
 import '../../data/models/credit_model.dart';
 import '../../data/models/transaction_model.dart';
+import '../widgets/add_category_dialog.dart';
 
 /// Purpose: Budgets & Debt Tracker Financial Hub Screen
 /// Author: Antigravity AI
@@ -53,6 +54,7 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
     final amountController = TextEditingController(
       text: item.budgetAmount > 0 ? item.budgetAmount.toStringAsFixed(0) : '',
     );
+    bool isSaving = false;
 
     showModalBottomSheet(
       context: context,
@@ -62,75 +64,497 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.outline.withOpacity(0.4),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Set Budget: ${item.categoryName}',
-                style: GoogleFonts.outfit(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.onSurface,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'Monthly Limit (₹)',
-                style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.onSurfaceVariant),
-              ),
-              const SizedBox(height: 6),
-              TextField(
-                controller: amountController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                style: GoogleFonts.outfit(color: AppColors.onSurface, fontSize: 18, fontWeight: FontWeight.bold),
-                decoration: InputDecoration(
-                  hintText: 'e.g. 5000',
-                  hintStyle: GoogleFonts.outfit(color: AppColors.outline),
-                  filled: true,
-                  fillColor: AppColors.surfaceContainerHigh,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                ),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () async {
-                  final amt = double.tryParse(amountController.text.trim()) ?? 0.0;
-                  if (amt > 0) {
-                    final ok = await ref.read(budgetProvider.notifier).setBudget(
-                          categoryId: item.categoryId,
-                          amount: amt,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.outline.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Edit Budget: ${item.categoryName}',
+                            style: GoogleFonts.outfit(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.onSurface,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (item.budgetId != null)
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, color: AppColors.expenseRose, size: 20),
+                            tooltip: 'Remove Budget',
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (ctx) => AlertDialog(
+                                  backgroundColor: AppColors.surfaceContainerHigh,
+                                  title: Text('Remove Budget', style: GoogleFonts.outfit(color: AppColors.onSurface)),
+                                  content: Text(
+                                    'Remove the monthly budget limit for ${item.categoryName}?',
+                                    style: GoogleFonts.outfit(color: AppColors.onSurfaceVariant),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, false),
+                                      child: Text('Cancel', style: GoogleFonts.outfit(color: AppColors.outline)),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: Text('Remove', style: GoogleFonts.outfit(color: AppColors.expenseRose, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true) {
+                                await ref.read(budgetProvider.notifier).removeBudget(item.budgetId!);
+                                if (mounted) {
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Budget removed for ${item.categoryName}', style: GoogleFonts.outfit()),
+                                      backgroundColor: AppColors.outline,
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Monthly Limit (₹)',
+                      style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: amountController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: GoogleFonts.outfit(color: AppColors.onSurface, fontSize: 18, fontWeight: FontWeight.bold),
+                      decoration: InputDecoration(
+                        hintText: 'e.g. 5000',
+                        hintStyle: GoogleFonts.outfit(color: AppColors.outline),
+                        filled: true,
+                        fillColor: AppColors.surfaceContainerHigh,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [2000, 5000, 10000, 20000, 50000].map((preset) {
+                        return ActionChip(
+                          label: Text(
+                            '₹${NumberFormat('#,##,###', 'en_IN').format(preset)}',
+                            style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryViolet),
+                          ),
+                          backgroundColor: AppColors.primaryViolet.withOpacity(0.12),
+                          side: BorderSide(color: AppColors.primaryViolet.withOpacity(0.3)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          onPressed: () {
+                            setModalState(() {
+                              amountController.text = preset.toString();
+                            });
+                          },
                         );
-                    if (ok && mounted) Navigator.pop(context);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryViolet,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              final amt = double.tryParse(amountController.text.trim()) ?? 0.0;
+                              if (amt > 0) {
+                                setModalState(() => isSaving = true);
+                                final ok = await ref.read(budgetProvider.notifier).setBudget(
+                                      categoryId: item.categoryId,
+                                      amount: amt,
+                                    );
+                                if (ok && mounted) {
+                                  Navigator.pop(context);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Budget updated successfully!', style: GoogleFonts.outfit()),
+                                      backgroundColor: AppColors.incomeEmerald,
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                } else {
+                                  setModalState(() => isSaving = false);
+                                }
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryViolet,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: isSaving
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : Text('Save Budget', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+                    ),
+                  ],
                 ),
-                child: Text('Save Budget', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
               ),
-            ],
-          ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showCreateBudgetSheet() {
+    ref.read(categoryProvider.notifier).fetchCategories();
+    final budgetState = ref.read(budgetProvider);
+    final amountController = TextEditingController();
+    String? selectedCategoryId;
+    bool isSaving = false;
+
+    final monthName = DateFormat('MMMM yyyy').format(
+      DateTime(budgetState.selectedYear, budgetState.selectedMonth),
+    );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surfaceContainer,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Consumer(
+          builder: (context, ref, _) {
+            final categoryState = ref.watch(categoryProvider);
+            final expenseCats = categoryState.categories
+                .where((c) => c.type == 'expense' && (c.parentCategoryId == null || c.parentCategoryId!.isEmpty))
+                .toList();
+            final List<Map<String, dynamic>> availableCategories = [];
+
+            if (expenseCats.isNotEmpty) {
+              for (final c in expenseCats) {
+                availableCategories.add({
+                  'id': c.id,
+                  'name': c.name,
+                  'color': c.color,
+                  'icon': c.icon,
+                });
+              }
+            } else if (budgetState.summary?.categories.isNotEmpty ?? false) {
+              for (final c in budgetState.summary!.categories) {
+                availableCategories.add({
+                  'id': c.categoryId,
+                  'name': c.categoryName,
+                  'color': c.categoryColor,
+                  'icon': c.categoryIcon,
+                });
+              }
+            }
+
+            if (availableCategories.isNotEmpty &&
+                (selectedCategoryId == null || !availableCategories.any((c) => c['id'] == selectedCategoryId))) {
+              selectedCategoryId = availableCategories.first['id'] as String;
+            }
+
+            return StatefulBuilder(
+              builder: (context, setModalState) {
+                return Padding(
+                  padding: EdgeInsets.only(
+                    left: 20,
+                    right: 20,
+                    top: 20,
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 36,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: AppColors.outline.withOpacity(0.4),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Create Category Budget',
+                              style: GoogleFonts.outfit(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.onSurface,
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryViolet.withOpacity(0.18),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: AppColors.primaryViolet.withOpacity(0.3)),
+                              ),
+                              child: Text(
+                                monthName,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Select Category',
+                              style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.onSurfaceVariant),
+                            ),
+                            InkWell(
+                              borderRadius: BorderRadius.circular(6),
+                              onTap: () async {
+                                await showDialog(
+                                  context: context,
+                                  builder: (ctx) => AddCategoryDialog(
+                                    initialType: 'expense',
+                                    onCategoryCreated: (newCatId) {
+                                      setModalState(() {
+                                        selectedCategoryId = newCatId;
+                                      });
+                                    },
+                                  ),
+                                );
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                child: Text(
+                                  '+ New Category',
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primaryViolet,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        if (categoryState.isLoading && availableCategories.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            alignment: Alignment.center,
+                            child: const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryViolet),
+                            ),
+                          )
+                        else if (availableCategories.isEmpty)
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceContainerHigh,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  'No expense categories found yet.',
+                                  style: GoogleFonts.outfit(color: AppColors.outline, fontSize: 13),
+                                ),
+                                const SizedBox(height: 10),
+                                OutlinedButton.icon(
+                                  icon: const Icon(Icons.add, size: 16, color: AppColors.primaryViolet),
+                                  label: Text('Create First Category', style: GoogleFonts.outfit(fontSize: 13, color: AppColors.primaryViolet)),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: AppColors.primaryViolet),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                  ),
+                                  onPressed: () async {
+                                    await showDialog(
+                                      context: context,
+                                      builder: (ctx) => AddCategoryDialog(
+                                        initialType: 'expense',
+                                        onCategoryCreated: (newCatId) {
+                                          setModalState(() {
+                                            selectedCategoryId = newCatId;
+                                          });
+                                        },
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceContainerHigh,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: selectedCategoryId,
+                                dropdownColor: AppColors.surfaceContainerHigh,
+                                isExpanded: true,
+                                style: GoogleFonts.outfit(color: AppColors.onSurface),
+                                items: availableCategories.map((c) {
+                                  final catColor = CategoryIcons.parseColor(c['color'] as String?);
+                                  final iconData = CategoryIcons.getIcon(c['icon'] as String?);
+                                  return DropdownMenuItem<String>(
+                                    value: c['id'] as String,
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 26,
+                                          height: 26,
+                                          decoration: BoxDecoration(
+                                            color: catColor.withOpacity(0.2),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: Icon(iconData, color: catColor, size: 14),
+                                        ),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            c['name'] as String,
+                                            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w500),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setModalState(() => selectedCategoryId = val);
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 14),
+                        Text(
+                          'Monthly Budget Limit (₹)',
+                          style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.onSurfaceVariant),
+                        ),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: amountController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          style: GoogleFonts.outfit(color: AppColors.onSurface, fontSize: 18, fontWeight: FontWeight.bold),
+                          decoration: InputDecoration(
+                            hintText: 'e.g. 5000',
+                            hintStyle: GoogleFonts.outfit(color: AppColors.outline),
+                            filled: true,
+                            fillColor: AppColors.surfaceContainerHigh,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [2000, 5000, 10000, 20000, 50000].map((preset) {
+                            return ActionChip(
+                              label: Text(
+                                '₹${NumberFormat('#,##,###', 'en_IN').format(preset)}',
+                                style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryViolet),
+                              ),
+                              backgroundColor: AppColors.primaryViolet.withOpacity(0.12),
+                              side: BorderSide(color: AppColors.primaryViolet.withOpacity(0.3)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              onPressed: () {
+                                setModalState(() {
+                                  amountController.text = preset.toString();
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 22),
+                        ElevatedButton(
+                          onPressed: isSaving
+                              ? null
+                              : () async {
+                                  final amt = double.tryParse(amountController.text.trim()) ?? 0.0;
+                                  if (selectedCategoryId != null && amt > 0) {
+                                    setModalState(() => isSaving = true);
+                                    final ok = await ref.read(budgetProvider.notifier).setBudget(
+                                          categoryId: selectedCategoryId!,
+                                          amount: amt,
+                                        );
+                                    if (ok && mounted) {
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Budget saved successfully!', style: GoogleFonts.outfit()),
+                                          backgroundColor: AppColors.incomeEmerald,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    } else {
+                                      setModalState(() => isSaving = false);
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryViolet,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: isSaving
+                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : Text(
+                                  'Save Budget',
+                                  style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
         );
       },
     );
@@ -916,6 +1340,20 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
           'Budgets & Credits',
           style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.onSurface),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.primary),
+            tooltip: 'Create Budget or Record',
+            onPressed: () {
+              if (_tabController.index == 0) {
+                _showCreateBudgetSheet();
+              } else {
+                _showAddCreditSheet();
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppColors.primary,
@@ -1012,17 +1450,53 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
           ),
           const SizedBox(height: 20),
 
-          Text(
-            'Categories',
-            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.onSurface),
+          // Header with Create Budget Button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Category Budgets',
+                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.onSurface),
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+                label: Text('Create Budget', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryViolet,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                ),
+                onPressed: _showCreateBudgetSheet,
+              ),
+            ],
           ),
           const SizedBox(height: 10),
 
           if (summary?.categories.isEmpty ?? true)
             Center(
               child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Text('No categories found', style: GoogleFonts.outfit(color: AppColors.onSurfaceVariant)),
+                padding: const EdgeInsets.all(32.0),
+                child: Column(
+                  children: [
+                    Icon(Icons.pie_chart_outline_rounded, size: 48, color: AppColors.outline.withOpacity(0.5)),
+                    const SizedBox(height: 12),
+                    Text(
+                      'No category budgets configured yet',
+                      style: GoogleFonts.outfit(color: AppColors.onSurfaceVariant, fontSize: 14),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
+                      label: Text('Create First Budget', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryViolet,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      ),
+                      onPressed: _showCreateBudgetSheet,
+                    ),
+                  ],
+                ),
               ),
             )
           else
@@ -1046,72 +1520,76 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
     final catColor = CategoryIcons.parseColor(cat.categoryColor);
     final iconData = CategoryIcons.getIcon(cat.categoryIcon);
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.glassBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: catColor.withOpacity(0.15),
-                      shape: BoxShape.circle,
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => _showSetBudgetSheet(cat),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainer,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.glassBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: catColor.withOpacity(0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(iconData, color: catColor, size: 16),
                     ),
-                    child: Icon(iconData, color: catColor, size: 16),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    cat.categoryName,
-                    style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.onSurface),
-                  ),
-                ],
-              ),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.primary),
-                onPressed: () => _showSetBudgetSheet(cat),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Spent: ${currencyFormatter.format(cat.spent)} / ${currencyFormatter.format(cat.budgetAmount)}',
-                style: GoogleFonts.outfit(fontSize: 12, color: AppColors.onSurfaceVariant),
-              ),
-              Text(
-                '${cat.percentage.toStringAsFixed(0)}%',
-                style: GoogleFonts.outfit(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: isOver ? AppColors.expenseRose : AppColors.incomeEmerald,
+                    const SizedBox(width: 10),
+                    Text(
+                      cat.categoryName,
+                      style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.onSurface),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: (cat.percentage / 100.0).clamp(0.0, 1.0),
-              minHeight: 6,
-              backgroundColor: AppColors.surfaceContainerHigh,
-              valueColor: AlwaysStoppedAnimation<Color>(isOver ? AppColors.expenseRose : AppColors.incomeEmerald),
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.primary),
+                  onPressed: () => _showSetBudgetSheet(cat),
+                ),
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Spent: ${currencyFormatter.format(cat.spent)} / ${currencyFormatter.format(cat.budgetAmount)}',
+                  style: GoogleFonts.outfit(fontSize: 12, color: AppColors.onSurfaceVariant),
+                ),
+                Text(
+                  '${cat.percentage.toStringAsFixed(0)}%',
+                  style: GoogleFonts.outfit(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: isOver ? AppColors.expenseRose : AppColors.incomeEmerald,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: (cat.percentage / 100.0).clamp(0.0, 1.0),
+                minHeight: 6,
+                backgroundColor: AppColors.surfaceContainerHigh,
+                valueColor: AlwaysStoppedAnimation<Color>(isOver ? AppColors.expenseRose : AppColors.incomeEmerald),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
