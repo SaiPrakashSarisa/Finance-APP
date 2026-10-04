@@ -190,7 +190,14 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     final categoryState = ref.watch(categoryProvider);
     final creditState = ref.watch(creditProvider);
 
-    final filteredCategories = categoryState.getOrderedCategories(type: _selectedType);
+    final selectedType = _selectedType.toLowerCase().trim();
+    final isIncome = selectedType == 'income';
+    final targetCategoryType = isIncome ? 'income' : 'expense';
+
+    final filteredCategories = categoryState
+        .getOrderedCategories(type: targetCategoryType)
+        .where((c) => c.type.toLowerCase().trim() == targetCategoryType)
+        .toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -414,7 +421,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                         showDialog(
                           context: context,
                           builder: (context) => AddCategoryDialog(
-                            initialType: _selectedType,
+                            initialType: _selectedType == 'income' ? 'income' : 'expense',
                             onCategoryCreated: (newId) {
                               setState(() => _selectedCategoryId = newId);
                             },
@@ -438,8 +445,13 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
-                      value: _selectedCategoryId,
-                      hint: Text('Select Category', style: GoogleFonts.outfit(color: AppColors.outline)),
+                      value: filteredCategories.any((c) => c.id == _selectedCategoryId)
+                          ? _selectedCategoryId
+                          : null,
+                      hint: Text(
+                        categoryState.isLoading ? 'Loading categories...' : 'Select Category',
+                        style: GoogleFonts.outfit(color: AppColors.outline),
+                      ),
                       dropdownColor: AppColors.surfaceContainerHigh,
                       isExpanded: true,
                       style: GoogleFonts.outfit(color: AppColors.onSurface),
@@ -589,9 +601,12 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
     return GestureDetector(
       onTap: () {
-        setState(() {
-          _selectedType = type;
-        });
+        if (_selectedType != type) {
+          setState(() {
+            _selectedType = type;
+            _selectedCategoryId = null;
+          });
+        }
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
