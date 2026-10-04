@@ -8,13 +8,14 @@ import '../../data/repositories/category_repository.dart';
 import '../../data/sync/sync_manager.dart';
 import 'auth_provider.dart';
 
-/// Purpose: Offline-First Category State Management Provider
+/// Purpose: Category State Management Provider (Direct-First + Sync Fallback)
 /// Author: Antigravity AI
 ///
-/// Architecture: Local-First Read/Write
-/// ─────────────────────────────────────
-/// READ:  Always from local SQLite (< 5ms)
-/// WRITE: Save to local SQLite → enqueue sync → flush queue if online
+/// Architecture:
+/// 1. Instant local SQLite write/read (<5ms)
+/// 2. Direct API call to Render backend
+/// 3. If direct call fails (offline/cold start) → drops to sync_queue
+/// 4. UI updates instantly in all cases
 
 const _uuid = Uuid();
 
@@ -63,12 +64,11 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
 
   CategoryNotifier(this.repository)
       : super(CategoryState(categories: [], isLoading: true)) {
-    _loadFromLocal();
+    fetchCategories();
   }
 
   /// PRIMARY: Load categories from local SQLite (< 5ms)
   Future<void> _loadFromLocal() async {
-    state = CategoryState(categories: state.categories, isLoading: true);
     try {
       final rows = await LocalDatabaseService.getLocalCategories();
       final list = rows.map((row) => _mapRowToModel(row)).toList();
@@ -79,12 +79,32 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
     }
   }
 
-  /// Public method: refresh categories from local DB (called after sync)
+  /// Refresh categories: Instant local display + background network fetch
   Future<void> fetchCategories({String? type}) async {
     await _loadFromLocal();
+
+    try {
+      final remoteList = await repository.getCategories(type: type);
+      if (remoteList.isNotEmpty) {
+        state = CategoryState(categories: remoteList, isLoading: false);
+        // Persist to local database
+        final jsonList = remoteList.map((c) => {
+          'id': c.id,
+          'name': c.name,
+          'type': c.type,
+          'parentCategoryId': c.parentCategoryId,
+          'color': c.color,
+          'icon': c.icon,
+        }).toList();
+        await LocalDatabaseService.clearLocalCategories();
+        await LocalDatabaseService.saveLocalCategories(jsonList);
+      }
+    } catch (e) {
+      debugPrint('[CategoryProvider] Network fetch failed, using local DB: $e');
+    }
   }
 
-  /// OFFLINE-FIRST: Add category to local DB instantly, enqueue sync
+  /// DIRECT-FIRST + SYNC FALLBACK: Add category
   Future<bool> addCategory(Map<String, dynamic> data) async {
     try {
       final catId = _uuid.v4();
@@ -97,23 +117,60 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
       };
       await LocalDatabaseService.saveLocalCategory(localCat, isSynced: false);
 
-      // 2. Enqueue sync
-      await LocalDatabaseService.enqueueOperation(
+      // 2. Refresh UI immediately from local data
+      await _loadFromLocal();
+
+      // 3. Direct API Call First with fallback to sync_queue
+      final response = await SyncManager.executeDirectWithQueueFallback(
         endpoint: ApiEndpoints.categories,
         method: 'POST',
         payload: data,
         customIdempotencyKey: idempotencyKey,
       );
 
-      // 3. Refresh UI from local data
-      await _loadFromLocal();
-
-      // 4. Background sync
-      SyncManager.syncPendingItems();
+      // 4. If direct call succeeded immediately, update local record with server ID if different
+      if (response != null && response.statusCode != null && response.statusCode! < 400) {
+        if (response.data != null && response.data['data'] is Map) {
+          final serverCat = response.data['data'] as Map<String, dynamic>;
+          if (serverCat['_id'] != null && serverCat['_id'] != catId) {
+            final database = await LocalDatabaseService.db;
+            await database.delete('categories', where: 'id = ?', whereArgs: [catId]);
+            await LocalDatabaseService.saveLocalCategory(serverCat, isSynced: true);
+            await _loadFromLocal();
+          }
+        }
+      }
 
       return true;
     } catch (e) {
       debugPrint('[CategoryProvider] addCategory error: $e');
+      return false;
+    }
+  }
+
+  /// DIRECT-FIRST + SYNC FALLBACK: Delete category
+  Future<bool> deleteCategory(String id) async {
+    try {
+      final idempotencyKey = _uuid.v4();
+      final database = await LocalDatabaseService.db;
+
+      // 1. Delete from local SQLite
+      await database.delete('categories', where: 'id = ?', whereArgs: [id]);
+
+      // 2. Refresh UI
+      await _loadFromLocal();
+
+      // 3. Direct API Call First with fallback to sync_queue
+      await SyncManager.executeDirectWithQueueFallback(
+        endpoint: '${ApiEndpoints.categories}/$id',
+        method: 'DELETE',
+        payload: {},
+        customIdempotencyKey: idempotencyKey,
+      );
+
+      return true;
+    } catch (e) {
+      debugPrint('[CategoryProvider] deleteCategory error: $e');
       return false;
     }
   }

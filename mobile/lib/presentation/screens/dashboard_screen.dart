@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../providers/account_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/analytics_provider.dart';
+import '../providers/user_provider.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/transaction_model.dart';
 
@@ -33,9 +34,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Future<void> _refreshData() async {
+    final range = ref.read(userProvider).settings?.dashboardRange ?? '1m';
     ref.read(accountProvider.notifier).fetchAccounts();
     ref.read(transactionProvider.notifier).fetchTransactions();
-    ref.read(analyticsProvider.notifier).fetchAll();
+    ref.read(analyticsProvider.notifier).fetchAll(range: range);
   }
 
   void _showAddAccountDialog() {
@@ -188,29 +190,53 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Listen to profile settings changes (e.g. user toggles 1m/3m/6m/1y/all in profile)
+    ref.listen<UserState>(userProvider, (previous, next) {
+      final oldRange = previous?.settings?.dashboardRange;
+      final newRange = next.settings?.dashboardRange;
+      if (newRange != null && newRange != oldRange) {
+        ref.read(analyticsProvider.notifier).fetchAll(range: newRange);
+      }
+    });
+
     final authState = ref.watch(authProvider);
+    final userState = ref.watch(userProvider);
     final accountState = ref.watch(accountProvider);
     final transactionState = ref.watch(transactionProvider);
     final analyticsState = ref.watch(analyticsProvider);
 
     final userName = authState.user?.name ?? 'User';
+    final currentRange = userState.settings?.dashboardRange ?? '1m';
 
-    // Calculate real-time current month income & expense from transactions as fallback
+    // Calculate real-time income & expense based on the user's selected dashboard range
     final now = DateTime.now();
-    final currentMonthTxs = transactionState.transactions.where((tx) {
+    DateTime rangeStart;
+    if (currentRange == '1m') {
+      rangeStart = DateTime(now.year, now.month, 1);
+    } else if (currentRange == '3m') {
+      rangeStart = DateTime(now.year, now.month - 2, 1);
+    } else if (currentRange == '6m') {
+      rangeStart = DateTime(now.year, now.month - 5, 1);
+    } else if (currentRange == '1y') {
+      rangeStart = DateTime(now.year, now.month - 11, 1);
+    } else {
+      rangeStart = DateTime(2000, 1, 1);
+    }
+
+    final filteredTxs = transactionState.transactions.where((tx) {
       try {
         final dt = DateTime.parse(tx.date);
-        return dt.month == now.month && dt.year == now.year;
+        return dt.isAfter(rangeStart.subtract(const Duration(seconds: 1)));
       } catch (_) {
         return false;
       }
     }).toList();
 
-    final dynamicIncome = currentMonthTxs
+    final dynamicIncome = filteredTxs
         .where((t) => t.type == 'income')
         .fold<double>(0.0, (sum, t) => sum + t.amount);
 
-    final dynamicExpense = currentMonthTxs
+    final dynamicExpense = filteredTxs
         .where((t) => t.type == 'expense')
         .fold<double>(0.0, (sum, t) => sum + t.amount);
 

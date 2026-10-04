@@ -10,6 +10,7 @@ import '../constants/api_endpoints.dart';
 class ApiClient {
   late final Dio dio;
   static final _uuid = const Uuid();
+  static void Function()? onSuccessfulResponse;
 
   static List<String> get fallbackUrls {
     if (kReleaseMode) {
@@ -62,6 +63,12 @@ class ApiClient {
           }
 
           return handler.next(options);
+        },
+        onResponse: (response, handler) {
+          if (response.statusCode != null && response.statusCode! < 400) {
+            onSuccessfulResponse?.call();
+          }
+          return handler.next(response);
         },
         onError: (DioException e, handler) async {
           // CRITICAL BUGFIX: Fallback host retry is restricted to READ-ONLY (GET, HEAD) requests.

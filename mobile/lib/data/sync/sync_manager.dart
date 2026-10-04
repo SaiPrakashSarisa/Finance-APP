@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 import '../../core/constants/api_endpoints.dart';
 import '../../core/network/api_client.dart';
 import '../local/local_database_service.dart';
@@ -10,34 +11,42 @@ import '../local/local_database_service.dart';
 /// Purpose: Reliable Offline-to-Online Synchronization Manager
 /// Author: Antigravity AI
 ///
-/// Architecture: Optimistic Write-Through + Background Queue
-/// ─────────────────────────────────────────────────────────
-/// 1. User action → write to local SQLite instantly (< 5ms) → UI updates immediately
-/// 2. Enqueue sync job into `sync_queue` table
-/// 3. If network available → flush queue in background immediately (non-blocking)
-/// 4. If offline → keep queued → auto-sync on connectivity resume or app foreground
-///
-/// Full Sync: On app startup or when coming to foreground after extended period,
-/// pull latest data from backend and hydrate local DB to stay in sync with
-/// changes made from other devices (e.g. web app).
+/// Architecture: Direct API First + Fallback to Sync Queue on Failure
+/// ──────────────────────────────────────────────────────────────────
+/// 1. Action executes: Writes to Local SQLite immediately (<5ms, 0ms latency)
+/// 2. If existing items in sync_queue → triggers opportunistic background drain
+/// 3. Direct API call is attempted immediately to Render backend
+/// 4. If direct call succeeds:
+///    - Local record marked as synced (isSynced = 1)
+/// 5. If direct call fails (offline, timeout, Render cold start):
+///    - Operation is enqueued in `sync_queue` table
+///    - Local SQLite copy remains completely intact so user never loses data
+/// 6. Queue retry triggers:
+///    - Piggybacked on ANY subsequent successful API call across the app
+///    - Periodic timing loop (every 3 minutes)
+///    - Connectivity restore listener
+///    - App foreground resume
 
 class SyncManager {
   static bool _isSyncing = false;
   static bool _isFullSyncing = false;
   static final ApiClient _apiClient = ApiClient();
   static StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  static Timer? _timer;
   static bool _isInitialized = false;
+  static const _uuid = Uuid();
 
   /// Sync status stream for UI indicators
   static final StreamController<SyncStatus> _statusController =
       StreamController<SyncStatus>.broadcast();
   static Stream<SyncStatus> get statusStream => _statusController.stream;
 
-  /// Initialize connectivity monitoring — call once from main.dart
+  /// Initialize connectivity monitoring & recurring timing loop — call once from main.dart
   static void initialize() {
     if (_isInitialized) return;
     _isInitialized = true;
 
+    // 1. Connectivity restore listener
     _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
       final hasConnection = results.any((r) => r != ConnectivityResult.none);
       if (hasConnection) {
@@ -46,13 +55,26 @@ class SyncManager {
       }
     });
 
-    debugPrint('[SyncManager] Initialized with connectivity monitoring');
+    // 2. Periodic timing loop (Heartbeat every 3 minutes)
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(minutes: 3), (_) {
+      debugPrint('[SyncManager] Heartbeat timing loop triggered');
+      syncPendingItems();
+    });
+
+    // 3. Piggyback on every successful API call across the entire app
+    ApiClient.onSuccessfulResponse = opportunisticSync;
+
+    debugPrint('[SyncManager] Initialized with connectivity monitoring, 3-min timing loop & piggyback sync');
   }
 
-  /// Dispose connectivity subscription (cleanup)
+  /// Dispose connectivity subscription and timer (cleanup)
   static void dispose() {
     _connectivitySub?.cancel();
     _connectivitySub = null;
+    _timer?.cancel();
+    _timer = null;
+    ApiClient.onSuccessfulResponse = null;
     _isInitialized = false;
     _statusController.close();
   }
@@ -63,12 +85,89 @@ class SyncManager {
     return result.any((r) => r != ConnectivityResult.none);
   }
 
+  /// Opportunistically drain queue in background if not already syncing
+  /// Called when any API call succeeds or is triggered across the app
+  static void opportunisticSync() {
+    if (!_isSyncing) {
+      syncPendingItems();
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  DIRECT CALL FIRST + FALLBACK TO SYNC QUEUE ON FAILURE
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Executes a direct API call first.
+  /// If it succeeds, returns the response.
+  /// If it fails (offline, connection timeout, server 5xx), enqueues into
+  /// `sync_queue` table and returns null without throwing error.
+  static Future<Response?> executeDirectWithQueueFallback({
+    required String endpoint,
+    required String method,
+    required Map<String, dynamic> payload,
+    String? customIdempotencyKey,
+  }) async {
+    // 1. Opportunistic trigger: flush any previous queued items
+    opportunisticSync();
+
+    final idempotencyKey = customIdempotencyKey ?? _uuid.v4();
+    final headers = {'X-Idempotency-Key': idempotencyKey};
+
+    // 2. Attempt direct API call immediately
+    try {
+      Response response;
+      final upperMethod = method.toUpperCase();
+
+      if (upperMethod == 'POST') {
+        response = await _apiClient.post(endpoint, data: payload, headers: headers);
+      } else if (upperMethod == 'PUT') {
+        response = await _apiClient.put(endpoint, data: payload, headers: headers);
+      } else if (upperMethod == 'PATCH') {
+        response = await _apiClient.patch(endpoint, data: payload, headers: headers);
+      } else if (upperMethod == 'DELETE') {
+        response = await _apiClient.delete(endpoint, headers: headers);
+      } else {
+        response = await _apiClient.get(endpoint);
+      }
+
+      // Check if successful (< 400)
+      if (response.statusCode != null && response.statusCode! < 400) {
+        debugPrint('[SyncManager] Direct API call succeeded: $upperMethod $endpoint');
+        return response;
+      } else if (response.statusCode == 409) {
+        // Idempotency duplicate - already recorded
+        debugPrint('[SyncManager] Direct API call 409 conflict (already recorded): $upperMethod $endpoint');
+        return response;
+      } else {
+        // Server returned 4xx or 5xx: enqueue for background retry
+        debugPrint('[SyncManager] Direct API call returned ${response.statusCode}, enqueuing to sync_queue');
+        await LocalDatabaseService.enqueueOperation(
+          endpoint: endpoint,
+          method: method,
+          payload: payload,
+          customIdempotencyKey: idempotencyKey,
+        );
+        return null;
+      }
+    } catch (e) {
+      // Network failure, offline, connection timeout, or Render sleeping
+      debugPrint('[SyncManager] Direct API call failed ($e), enqueuing to sync_queue');
+      await LocalDatabaseService.enqueueOperation(
+        endpoint: endpoint,
+        method: method,
+        payload: payload,
+        customIdempotencyKey: idempotencyKey,
+      );
+      return null;
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   //  INCREMENTAL SYNC: Drain pending queue items sequentially
   // ═══════════════════════════════════════════════════════════════════════════
 
   /// Drain pending offline sync items sequentially.
-  /// Called automatically on connectivity restore, and can be triggered manually.
+  /// Called automatically on connectivity restore, timing loop, and piggybacking.
   static Future<void> syncPendingItems() async {
     if (_isSyncing) return;
     _isSyncing = true;
@@ -146,13 +245,7 @@ class SyncManager {
   // ═══════════════════════════════════════════════════════════════════════════
 
   /// Full downstream sync: fetch latest data from backend and update local DB.
-  /// This ensures the mobile app picks up changes made from other devices
-  /// (e.g. the web app at ss-money-manager.vercel.app).
-  ///
-  /// Called on:
-  /// - First app launch (no local data yet)
-  /// - App coming to foreground after > 5 minutes
-  /// - Manual pull-to-refresh
+  /// Ensures mobile picks up changes made from other devices (e.g. web app).
   static Future<bool> fullSync() async {
     if (_isFullSyncing) return false;
     _isFullSyncing = true;
@@ -171,7 +264,6 @@ class SyncManager {
 
       // 2. Pull latest data from backend
       debugPrint('[SyncManager] Starting full downstream sync...');
-
       bool success = true;
 
       // Sync Categories
@@ -254,41 +346,38 @@ class SyncManager {
       return success;
     } catch (e) {
       debugPrint('[SyncManager] Full sync error: $e');
-      _statusController.add(SyncStatus.error);
+      _statusController.add(SyncStatus.partialError);
       return false;
     } finally {
       _isFullSyncing = false;
     }
   }
 
-  /// Check if a full sync is needed based on elapsed time since last sync
-  static Future<bool> needsFullSync({Duration threshold = const Duration(minutes: 5)}) async {
-    final lastSync = await LocalDatabaseService.getSyncMeta('lastFullSync');
-    if (lastSync == null) return true; // Never synced before
-
-    final lastSyncTime = DateTime.tryParse(lastSync);
-    if (lastSyncTime == null) return true;
-
-    return DateTime.now().difference(lastSyncTime) > threshold;
+  /// Check if a full sync is needed (> 5 minutes since last full sync)
+  static Future<bool> needsFullSync() async {
+    final lastSyncStr = await LocalDatabaseService.getSyncMeta('lastFullSync');
+    if (lastSyncStr == null) return true;
+    final lastSync = DateTime.tryParse(lastSyncStr);
+    if (lastSync == null) return true;
+    return DateTime.now().difference(lastSync).inMinutes >= 5;
   }
 
-  /// Trigger sync if needed — called on app foreground
+  /// Trigger sync if needed (called on app foreground)
   static Future<void> syncIfNeeded() async {
+    final pendingCount = await LocalDatabaseService.getPendingSyncCount();
+    if (pendingCount > 0) {
+      await syncPendingItems();
+    }
     if (await needsFullSync()) {
       await fullSync();
-    } else {
-      // Just flush any pending local writes
-      await syncPendingItems();
     }
   }
 }
 
-/// Sync status for UI indicators
 enum SyncStatus {
   idle,
   syncing,
   fullSync,
   offline,
   partialError,
-  error,
 }

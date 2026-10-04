@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const cache = require('../utils/cache');
 
 const userController = {
     async getSettings(req, res) {
@@ -24,6 +25,7 @@ const userController = {
                 { new: true, runValidators: true }
             );
             if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+            cache.clearUserCache(req.userId);
             res.json({ success: true, data: user.settings });
         } catch (error) {
             res.status(400).json({ success: false, error: error.message });

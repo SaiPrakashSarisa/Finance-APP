@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/user_model.dart';
 import '../../data/repositories/user_repository.dart';
+import 'analytics_provider.dart';
 import 'auth_provider.dart';
 
 /// Purpose: User Profile & Settings State Management Provider
@@ -64,6 +65,9 @@ class UserNotifier extends StateNotifier<UserState> {
       final updated = await repository.updateSettings(data);
       if (updated != null) {
         state = UserState(profile: state.profile, settings: updated, isLoading: false);
+        if (data.containsKey('dashboardRange')) {
+          ref.read(analyticsProvider.notifier).fetchAll(range: data['dashboardRange'] as String);
+        }
         return true;
       }
     } catch (_) {}

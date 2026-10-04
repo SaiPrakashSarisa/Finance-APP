@@ -57,13 +57,35 @@ class AnalyticsNotifier extends StateNotifier<AnalyticsState> {
   }
 
   /// Instant local dashboard calculation from SQLite (<5ms)
-  Future<void> _computeLocalDashboard({int? month, int? year}) async {
+  Future<void> _computeLocalDashboard({String? range, int? month, int? year}) async {
     try {
       final now = DateTime.now();
-      final m = month ?? now.month;
-      final y = year ?? now.year;
-      final startDate = DateTime(y, m, 1);
-      final endDate = DateTime(y, m + 1, 0, 23, 59, 59);
+      DateTime startDate;
+      DateTime endDate;
+
+      if (month != null && year != null) {
+        startDate = DateTime(year, month, 1, 0, 0, 0);
+        endDate = DateTime(year, month + 1, 0, 23, 59, 59);
+      } else {
+        final r = range ?? '1m';
+        if (r == '1m') {
+          startDate = DateTime(now.year, now.month, 1, 0, 0, 0);
+          endDate = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+        } else if (r == '3m') {
+          startDate = DateTime(now.year, now.month - 2, 1, 0, 0, 0);
+          endDate = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+        } else if (r == '6m') {
+          startDate = DateTime(now.year, now.month - 5, 1, 0, 0, 0);
+          endDate = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+        } else if (r == '1y') {
+          startDate = DateTime(now.year, now.month - 11, 1, 0, 0, 0);
+          endDate = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+        } else {
+          // 'all'
+          startDate = DateTime(2000, 1, 1);
+          endDate = DateTime(now.year + 5, 12, 31, 23, 59, 59);
+        }
+      }
 
       final accounts = await LocalDatabaseService.getLocalAccounts();
       final incomes = await LocalDatabaseService.getLocalTransactions(
@@ -100,29 +122,26 @@ class AnalyticsNotifier extends StateNotifier<AnalyticsState> {
         accounts: accounts,
       );
 
-      // Only update dashboard if we don't already have remote data, or as a fast first-paint
-      if (state.dashboard == null) {
-        state = AnalyticsState(
-          dashboard: localDashboard,
-          insights: state.insights,
-          categories: state.categories,
-          monthlyTrends: state.monthlyTrends,
-          inflationItems: state.inflationItems,
-          subscriptions: state.subscriptions,
-          isLoading: false,
-        );
-      }
+      // Instant local paint
+      state = AnalyticsState(
+        dashboard: localDashboard,
+        insights: state.insights,
+        categories: state.categories,
+        monthlyTrends: state.monthlyTrends,
+        inflationItems: state.inflationItems,
+        subscriptions: state.subscriptions,
+        isLoading: false,
+      );
     } catch (e) {
       debugPrint('[AnalyticsNotifier] Error computing local dashboard: $e');
     }
   }
 
-  Future<void> fetchAll({int? month, int? year}) async {
-    // If we have no dashboard yet, quickly compute from local DB first
-    if (state.dashboard == null) {
-      await _computeLocalDashboard(month: month, year: year);
-    }
+  Future<void> fetchAll({String? range, int? month, int? year}) async {
+    // 1. Instant local computation (<5ms)
+    await _computeLocalDashboard(range: range, month: month, year: year);
 
+    // 2. Fetch live data from backend
     try {
       final d = await repository.getDashboard(month: month, year: year);
       final ins = await repository.getInsights(month: month, year: year);
@@ -142,17 +161,7 @@ class AnalyticsNotifier extends StateNotifier<AnalyticsState> {
       );
     } catch (e) {
       // Offline / network timeout / Render cold start: retain existing local data
-      debugPrint('[AnalyticsNotifier] Network fetch failed, retaining existing state: $e');
-      state = AnalyticsState(
-        dashboard: state.dashboard,
-        insights: state.insights,
-        categories: state.categories,
-        monthlyTrends: state.monthlyTrends,
-        inflationItems: state.inflationItems,
-        subscriptions: state.subscriptions,
-        isLoading: false,
-        error: e.toString(),
-      );
+      debugPrint('[AnalyticsNotifier] Network fetch failed, retaining local state: $e');
     }
   }
 }

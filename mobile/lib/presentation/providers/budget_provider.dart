@@ -136,7 +136,7 @@ class BudgetNotifier extends StateNotifier<BudgetState> {
     }
   }
 
-  /// Optimistic write-through: save to local DB → enqueue sync → refresh UI → flush
+  /// DIRECT-FIRST + SYNC FALLBACK: Set / upsert budget
   Future<bool> setBudget({
     required String categoryId,
     required double amount,
@@ -158,11 +158,14 @@ class BudgetNotifier extends StateNotifier<BudgetState> {
         'year': y,
       };
 
-      // 1. Write to local SQLite immediately
+      // 1. Write to local SQLite immediately (<5ms)
       await LocalDatabaseService.saveLocalBudget(budgetMap, isSynced: false);
 
-      // 2. Enqueue sync operation
-      await LocalDatabaseService.enqueueOperation(
+      // 2. Refresh UI instantly from local DB
+      await _loadFromLocal(m, y);
+
+      // 3. Direct API Call First with fallback to sync_queue
+      final response = await SyncManager.executeDirectWithQueueFallback(
         endpoint: ApiEndpoints.budgets,
         method: 'POST',
         payload: {
@@ -173,11 +176,10 @@ class BudgetNotifier extends StateNotifier<BudgetState> {
         },
       );
 
-      // 3. Refresh UI instantly from local DB
-      await _loadFromLocal(m, y);
+      if (response != null && response.statusCode != null && response.statusCode! < 400) {
+        await LocalDatabaseService.saveLocalBudget(budgetMap, isSynced: true);
+      }
 
-      // 4. Background sync flush
-      SyncManager.syncPendingItems();
       return true;
     } catch (e) {
       debugPrint('[BudgetNotifier] Error setting budget: $e');
@@ -185,24 +187,22 @@ class BudgetNotifier extends StateNotifier<BudgetState> {
     }
   }
 
-  /// Optimistic delete: delete from local DB → enqueue sync → refresh UI → flush
+  /// DIRECT-FIRST + SYNC FALLBACK: Delete budget
   Future<bool> removeBudget(String budgetId) async {
     try {
       // 1. Delete from local SQLite
       await LocalDatabaseService.deleteLocalBudget(budgetId);
 
-      // 2. Enqueue DELETE operation
-      await LocalDatabaseService.enqueueOperation(
+      // 2. Refresh UI instantly
+      await _loadFromLocal(state.selectedMonth, state.selectedYear);
+
+      // 3. Direct API Call First with fallback to sync_queue
+      await SyncManager.executeDirectWithQueueFallback(
         endpoint: '${ApiEndpoints.budgets}/$budgetId',
         method: 'DELETE',
         payload: {},
       );
 
-      // 3. Refresh UI instantly
-      await _loadFromLocal(state.selectedMonth, state.selectedYear);
-
-      // 4. Background sync flush
-      SyncManager.syncPendingItems();
       return true;
     } catch (e) {
       debugPrint('[BudgetNotifier] Error removing budget: $e');

@@ -138,7 +138,7 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
     );
   }
 
-  /// OFFLINE-FIRST: Add transaction to local DB instantly, enqueue sync
+  /// DIRECT-FIRST + SYNC QUEUE FALLBACK: Add transaction
   Future<bool> addTransaction(Map<String, dynamic> data) async {
     try {
       final txId = _uuid.v4();
@@ -164,20 +164,30 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
         );
       }
 
-      // 3. Enqueue sync operation for background push to server
-      await LocalDatabaseService.enqueueOperation(
+      // 3. Refresh UI immediately from local data (<5ms!)
+      await _loadFromLocal();
+      ref.read(accountProvider.notifier).fetchAccounts();
+      ref.read(analyticsProvider.notifier).fetchAll();
+
+      // 4. Direct API Call First with automatic fallback to sync_queue on failure
+      final response = await SyncManager.executeDirectWithQueueFallback(
         endpoint: ApiEndpoints.transactions,
         method: 'POST',
         payload: data,
         customIdempotencyKey: idempotencyKey,
       );
 
-      // 4. Refresh UI immediately from local data
-      await _loadFromLocal();
-      ref.read(accountProvider.notifier).fetchAccounts();
-
-      // 5. Non-blocking: Flush sync queue in background
-      SyncManager.syncPendingItems();
+      // 5. If direct API succeeded, update local record with server ID if different
+      if (response != null && response.statusCode != null && response.statusCode! < 400) {
+        if (response.data != null && response.data['transaction'] is Map) {
+          final serverTx = response.data['transaction'] as Map<String, dynamic>;
+          if (serverTx['_id'] != null && serverTx['_id'] != txId) {
+            await LocalDatabaseService.deleteLocalTransaction(txId);
+            await LocalDatabaseService.saveLocalTransaction(serverTx, isSynced: true);
+            await _loadFromLocal();
+          }
+        }
+      }
 
       return true;
     } catch (e) {
@@ -186,7 +196,7 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
     }
   }
 
-  /// OFFLINE-FIRST: Update transaction in local DB, enqueue sync
+  /// DIRECT-FIRST + SYNC QUEUE FALLBACK: Update transaction
   Future<bool> updateTransaction(String id, Map<String, dynamic> data) async {
     try {
       final idempotencyKey = _uuid.v4();
@@ -199,20 +209,22 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
       };
       await LocalDatabaseService.saveLocalTransaction(localTx, isSynced: false);
 
-      // 2. Enqueue sync
-      await LocalDatabaseService.enqueueOperation(
+      // 2. Refresh UI
+      await _loadFromLocal();
+      ref.read(accountProvider.notifier).fetchAccounts();
+      ref.read(analyticsProvider.notifier).fetchAll();
+
+      // 3. Direct API Call First with fallback to sync_queue
+      final response = await SyncManager.executeDirectWithQueueFallback(
         endpoint: '${ApiEndpoints.transactions}/$id',
         method: 'PUT',
         payload: data,
         customIdempotencyKey: idempotencyKey,
       );
 
-      // 3. Refresh UI
-      await _loadFromLocal();
-      ref.read(accountProvider.notifier).fetchAccounts();
-
-      // 4. Background sync
-      SyncManager.syncPendingItems();
+      if (response != null && response.statusCode != null && response.statusCode! < 400) {
+        await LocalDatabaseService.saveLocalTransaction(localTx, isSynced: true);
+      }
 
       return true;
     } catch (e) {
@@ -221,7 +233,7 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
     }
   }
 
-  /// OFFLINE-FIRST: Delete transaction from local DB, enqueue sync
+  /// DIRECT-FIRST + SYNC QUEUE FALLBACK: Delete transaction
   Future<bool> deleteTransaction(String id) async {
     try {
       final idempotencyKey = _uuid.v4();
@@ -229,20 +241,18 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
       // 1. Delete from local SQLite instantly
       await LocalDatabaseService.deleteLocalTransaction(id);
 
-      // 2. Enqueue sync
-      await LocalDatabaseService.enqueueOperation(
+      // 2. Refresh UI
+      await _loadFromLocal();
+      ref.read(accountProvider.notifier).fetchAccounts();
+      ref.read(analyticsProvider.notifier).fetchAll();
+
+      // 3. Direct API Call First with fallback to sync_queue
+      await SyncManager.executeDirectWithQueueFallback(
         endpoint: '${ApiEndpoints.transactions}/$id',
         method: 'DELETE',
         payload: {},
         customIdempotencyKey: idempotencyKey,
       );
-
-      // 3. Refresh UI
-      await _loadFromLocal();
-      ref.read(accountProvider.notifier).fetchAccounts();
-
-      // 4. Background sync
-      SyncManager.syncPendingItems();
 
       return true;
     } catch (e) {
