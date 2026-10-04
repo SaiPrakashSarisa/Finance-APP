@@ -3,9 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
-import '../../core/network/api_client.dart';
 import '../../core/constants/api_endpoints.dart';
+import '../../core/network/api_client.dart';
+import '../../data/local/local_database_service.dart';
 import '../../data/models/user_model.dart';
+import '../../data/sync/sync_manager.dart';
 
 /// Purpose: Authentication & Session State Management Provider
 /// Author: Antigravity AI
@@ -77,6 +79,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       // 3. Fire-and-forget background verification with remote server
       _verifySessionWithServer(token);
+
+      // 4. Trigger sync if needed (drains queue, pulls updates if stale)
+      SyncManager.syncIfNeeded();
     } catch (_) {
       state = state.copyWith(isAuthenticated: false, isLoading: false);
     }
@@ -96,6 +101,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove('jwt_token');
         await prefs.remove('cached_user');
+        await LocalDatabaseService.clearAllData();
         state = AuthState(isAuthenticated: false, isLoading: false);
       }
     } catch (e) {
@@ -125,6 +131,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
           isLoading: false,
           user: userObj,
         );
+
+        // Hydrate local database from remote backend in background
+        SyncManager.fullSync();
         return true;
       } else {
         final serverError = response.data is Map ? (response.data['error'] ?? response.data['message']) : null;
@@ -173,6 +182,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
           isLoading: false,
           user: userObj,
         );
+
+        // Hydrate local database from remote backend in background
+        SyncManager.fullSync();
         return true;
       } else {
         final serverError = response.data is Map ? (response.data['error'] ?? response.data['message']) : null;
@@ -208,6 +220,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('jwt_token');
     await prefs.remove('cached_user');
+    await LocalDatabaseService.clearAllData();
     state = AuthState(isAuthenticated: false, isLoading: false);
   }
 
