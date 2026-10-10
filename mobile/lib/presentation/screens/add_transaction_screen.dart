@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -115,6 +116,8 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   }
 
   Future<void> _handleSubmit() async {
+    if (_isSubmitting) return; // Prevent duplicate submits
+
     final amount = double.tryParse(_amountController.text.trim()) ?? 0.0;
     if (amount <= 0 || _selectedAccountId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -153,6 +156,11 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       payload['toAccountId'] = _selectedToAccountId;
     } else if (_selectedType == 'credit_repay') {
       payload['creditId'] = _selectedCreditId;
+      final creditList = ref.read(creditProvider).credits;
+      final matchingCredit = creditList.firstWhereOrNull((c) => c.id == _selectedCreditId);
+      if (matchingCredit != null) {
+        payload['creditType'] = matchingCredit.type;
+      }
     } else if (_selectedCategoryId != null) {
       payload['categoryId'] = _selectedCategoryId;
     }
@@ -173,13 +181,27 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     }
 
     final success = await ref.read(transactionProvider.notifier).addTransaction(payload);
-    setState(() => _isSubmitting = false);
+
+    if (mounted) {
+      setState(() => _isSubmitting = false);
+    }
 
     if (success && mounted) {
+      _amountController.clear();
+      _noteController.clear();
+      _merchantController.clear();
       context.pop();
     } else if (mounted) {
+      // Show the specific error from the provider (e.g. "Insufficient funds...")
+      // falling back to a generic message if none is set.
+      final errorMsg = ref.read(transactionProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to save transaction. Check inputs.')),
+        SnackBar(
+          content: Text(errorMsg ?? 'Failed to save transaction. Check inputs.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
       );
     }
   }

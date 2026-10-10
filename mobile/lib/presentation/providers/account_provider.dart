@@ -46,7 +46,7 @@ class AccountNotifier extends StateNotifier<AccountState> {
   }
 
   /// PRIMARY: Load accounts from local SQLite (< 5ms)
-  Future<void> _loadFromLocal() async {
+  Future<void> loadFromLocal() async {
     try {
       final rows = await LocalDatabaseService.getLocalAccounts();
       final list = rows.map((row) => _mapRowToModel(row)).toList();
@@ -57,25 +57,27 @@ class AccountNotifier extends StateNotifier<AccountState> {
     }
   }
 
+  Future<void> _loadFromLocal() => loadFromLocal();
+
   /// Refresh accounts: Instant local display + background network fetch
   Future<void> fetchAccounts() async {
-    await _loadFromLocal();
+    await loadFromLocal();
 
     try {
       final remoteList = await repository.getAccounts();
-      if (remoteList.isNotEmpty) {
-        state = AccountState(accounts: remoteList, isLoading: false);
-        // Persist to local database
-        final jsonList = remoteList.map((a) => {
-          'id': a.id,
-          'name': a.name,
-          'type': a.type,
-          'balance': a.balance,
-          'initialBalance': a.initialBalance,
-          'currency': a.currency,
-          'isActive': 1,
-        }).toList();
-        await LocalDatabaseService.clearLocalAccounts();
+      state = AccountState(accounts: remoteList, isLoading: false);
+      // Persist to local database
+      final jsonList = remoteList.map((a) => {
+        'id': a.id,
+        'name': a.name,
+        'type': a.type,
+        'balance': a.balance,
+        'initialBalance': a.initialBalance,
+        'currency': a.currency,
+        'isActive': 1,
+      }).toList();
+      await LocalDatabaseService.clearLocalAccounts();
+      if (jsonList.isNotEmpty) {
         await LocalDatabaseService.saveLocalAccounts(jsonList);
       }
     } catch (e) {

@@ -53,6 +53,37 @@ class CreditNotifier extends StateNotifier<CreditState> {
     } catch (_) {}
     return false;
   }
+
+  /// Optimistically update local credit balance when a repayment transaction occurs
+  void recordRepaymentOptimistic(String creditId, double amount) {
+    final updatedList = state.credits.map((c) {
+      if (c.id == creditId) {
+        final newRemaining = (c.remainingAmount - amount).clamp(0.0, double.infinity);
+        final newStatus = newRemaining <= 0 ? 'settled' : 'partial';
+        return CreditModel(
+          id: c.id,
+          type: c.type,
+          subType: c.subType,
+          personName: c.personName,
+          amount: c.amount,
+          remainingAmount: newRemaining,
+          interestRate: c.interestRate,
+          linkedAccountId: c.linkedAccountId,
+          linkedAccountName: c.linkedAccountName,
+          status: newStatus,
+          dueDate: c.dueDate,
+          notes: c.notes,
+        );
+      }
+      return c;
+    }).toList();
+
+    state = CreditState(
+      credits: updatedList,
+      totals: state.totals,
+      isLoading: false,
+    );
+  }
 }
 
 final creditProvider = StateNotifierProvider<CreditNotifier, CreditState>((ref) {

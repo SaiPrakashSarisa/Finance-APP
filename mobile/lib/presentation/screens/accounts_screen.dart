@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
+import '../widgets/skeleton_loaders.dart';
 import '../providers/account_provider.dart';
 
 /// Purpose: Accounts Management Screen
@@ -18,81 +19,95 @@ class AccountsScreen extends ConsumerWidget {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceContainerHigh,
-        title: const Text('Add New Account', style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Account Name',
-                labelStyle: TextStyle(color: AppColors.onSurfaceVariant),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.outlineVariant)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: balanceController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Initial Balance',
-                labelStyle: TextStyle(color: AppColors.onSurfaceVariant),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.outlineVariant)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            StatefulBuilder(
-              builder: (context, setState) => DropdownButtonFormField<String>(
-                value: selectedType,
-                dropdownColor: AppColors.surfaceContainerHigh,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'Account Type',
-                  labelStyle: TextStyle(color: AppColors.onSurfaceVariant),
+      builder: (ctx) {
+        bool isSubmitting = false;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            backgroundColor: AppColors.surfaceContainerHigh,
+            title: const Text('Add New Account', style: TextStyle(color: Colors.white)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Account Name',
+                    labelStyle: TextStyle(color: AppColors.onSurfaceVariant),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.outlineVariant)),
+                  ),
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'cash', child: Text('Cash')),
-                  DropdownMenuItem(value: 'bank', child: Text('Bank')),
-                  DropdownMenuItem(value: 'savings', child: Text('Savings')),
-                  DropdownMenuItem(value: 'credit_card', child: Text('Credit Card')),
-                  DropdownMenuItem(value: 'investment', child: Text('Investment')),
-                ],
-                onChanged: (val) {
-                  if (val != null) setState(() => selectedType = val);
-                },
-              ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: balanceController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Initial Balance',
+                    labelStyle: TextStyle(color: AppColors.onSurfaceVariant),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.outlineVariant)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedType,
+                  dropdownColor: AppColors.surfaceContainerHigh,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Account Type',
+                    labelStyle: TextStyle(color: AppColors.onSurfaceVariant),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                    DropdownMenuItem(value: 'bank', child: Text('Bank')),
+                    DropdownMenuItem(value: 'savings', child: Text('Savings')),
+                    DropdownMenuItem(value: 'credit_card', child: Text('Credit Card')),
+                    DropdownMenuItem(value: 'investment', child: Text('Investment')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) setDialogState(() => selectedType = val);
+                  },
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.onSurfaceVariant)),
+            actions: [
+              TextButton(
+                onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancel', style: TextStyle(color: AppColors.onSurfaceVariant)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryViolet),
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        final name = nameController.text.trim();
+                        final balance = double.tryParse(balanceController.text.trim()) ?? 0.0;
+                        if (name.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please enter an account name.')),
+                          );
+                          return;
+                        }
+
+                        setDialogState(() => isSubmitting = true);
+
+                        await ref.read(accountProvider.notifier).addAccount({
+                          'name': name,
+                          'type': selectedType,
+                          'balance': balance,
+                          'color': '#6366F1',
+                          'icon': 'account_balance',
+                        });
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                child: isSubmitting
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text('Save', style: TextStyle(color: Colors.white)),
+              ),
+            ],
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryViolet),
-            onPressed: () async {
-              final name = nameController.text.trim();
-              final balance = double.tryParse(balanceController.text.trim()) ?? 0.0;
-              if (name.isNotEmpty) {
-                await ref.read(accountProvider.notifier).addAccount({
-                  'name': name,
-                  'type': selectedType,
-                  'balance': balance,
-                  'color': '#6366F1',
-                  'icon': 'account_balance',
-                });
-                if (ctx.mounted) Navigator.pop(ctx);
-              }
-            },
-            child: const Text('Save', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -115,7 +130,7 @@ class AccountsScreen extends ConsumerWidget {
         label: const Text('Add Account', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
       body: accountState.isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryViolet))
+          ? const AccountsScreenSkeleton()
           : Column(
               children: [
                 // Net Worth Header

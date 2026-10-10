@@ -5,6 +5,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/constants/category_icons.dart';
 import '../providers/category_provider.dart';
 import '../widgets/add_category_dialog.dart';
+import '../widgets/skeleton_loaders.dart';
 
 /// Purpose: Categories Management Screen with Tabs for Expense & Income
 /// Author: Antigravity AI
@@ -84,7 +85,7 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen> with Single
         ),
       ),
       body: categoryState.isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryViolet))
+          ? const CategoriesScreenSkeleton()
           : TabBarView(
               controller: _tabController,
               children: [

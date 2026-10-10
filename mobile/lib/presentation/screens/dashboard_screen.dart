@@ -11,6 +11,7 @@ import '../providers/analytics_provider.dart';
 import '../providers/user_provider.dart';
 import '../../data/models/account_model.dart';
 import '../../data/models/transaction_model.dart';
+import '../widgets/skeleton_loaders.dart';
 
 /// Purpose: Home Dashboard Screen
 /// Author: Antigravity AI
@@ -678,7 +679,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   SizedBox(
                     height: 135,
                     child: accountState.isLoading
-                        ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                        ? const AccountCardsSkeleton()
                         : ListView.separated(
                             scrollDirection: Axis.horizontal,
                             itemCount: accountState.accounts.length + 1,
@@ -721,12 +722,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
                 const SizedBox(height: 12),
                 if (transactionState.isLoading)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(24.0),
-                      child: CircularProgressIndicator(color: AppColors.primary),
-                    ),
-                  )
+                  const TransactionListSkeleton(count: 5)
                 else if (transactionState.transactions.isEmpty)
                   Container(
                     width: double.infinity,
@@ -1151,14 +1147,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final isIncome = tx.type == 'income';
     final isTransfer = tx.type == 'transfer';
     final isCreditRepay = tx.type == 'credit_repay';
+    final isRepayInflow = isCreditRepay && tx.creditType == 'given';
 
-    final Color amountColor = isIncome
+    final Color amountColor = (isIncome || isRepayInflow)
         ? const Color(0xFF4EDEA3)
-        : (isTransfer || isCreditRepay)
+        : isTransfer
             ? const Color(0xFFF59E0B)
             : const Color(0xFFFF516A);
 
-    final String prefix = isIncome ? '+' : (isTransfer || isCreditRepay) ? '' : '-';
+    final String prefix = (isIncome || isRepayInflow) ? '+' : isTransfer ? '' : '-';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),

@@ -19,6 +19,20 @@ class TransactionRepository {
     return [];
   }
 
+  /// Fetch transactions and tombstones from backend
+  Future<({List<TransactionModel> transactions, List<String> deletedIds})> fetchRemoteTransactions({Map<String, dynamic>? filters}) async {
+    final response = await apiClient.get(ApiEndpoints.transactions, queryParameters: filters);
+    if (response.data != null && response.data['success'] == true) {
+      final list = (response.data['transactions'] as List<dynamic>?) ?? [];
+      final deleted = (response.data['deletedIds'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [];
+      return (
+        transactions: list.map((item) => TransactionModel.fromJson(item)).toList(),
+        deletedIds: deleted,
+      );
+    }
+    return (transactions: <TransactionModel>[], deletedIds: <String>[]);
+  }
+
   Future<TransactionModel?> createTransaction(Map<String, dynamic> data) async {
     final response = await apiClient.post(ApiEndpoints.transactions, data: data);
     if (response.data != null && response.data['success'] == true) {

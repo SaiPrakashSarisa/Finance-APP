@@ -19,6 +19,7 @@ const budgetService = {
         // Fetch all expense transactions for the month in one go (optimization)
         const transactions = await Transaction.find({
             userId,
+            isDeleted: { $ne: true },
             type: 'expense',
             date: { $gte: startDate, $lte: endDate }
         }).select('amount categoryId isItemized items');

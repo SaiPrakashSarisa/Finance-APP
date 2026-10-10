@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -9,6 +11,7 @@ import '../../data/repositories/transaction_repository.dart';
 import '../../data/sync/sync_manager.dart';
 import 'auth_provider.dart';
 import 'account_provider.dart';
+import 'credit_provider.dart';
 import 'analytics_provider.dart';
 
 /// Purpose: Offline-First Transaction State Management Provider
@@ -123,71 +126,172 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
     }
   }
 
-  /// Public method: refresh transactions from local DB (called after sync)
+  /// Public method: refresh transactions from local DB and downstream sync with backend
   Future<void> fetchTransactions({
     String? type,
     String? accountId,
     String? categoryId,
     String? search,
   }) async {
+    // 1. Instant local render (< 5ms)
     await _loadFromLocal(
       type: type,
       accountId: accountId,
       categoryId: categoryId,
       search: search,
     );
+
+    // 2. Downstream sync: fetch active records & tombstones from server
+    try {
+      final filters = <String, dynamic>{
+        'limit': 200,
+        if (type != null && type != 'all') 'type': type,
+        if (accountId != null) 'accountId': accountId,
+        if (categoryId != null) 'categoryId': categoryId,
+      };
+
+      final remote = await repository.fetchRemoteTransactions(filters: filters);
+
+      bool changed = false;
+
+      // Purge soft-deleted tombstones locally
+      if (remote.deletedIds.isNotEmpty) {
+        await LocalDatabaseService.deleteLocalTransactions(remote.deletedIds);
+        changed = true;
+      }
+
+      // Upsert server records into SQLite
+      if (remote.transactions.isNotEmpty) {
+        await LocalDatabaseService.saveLocalTransactions(
+          remote.transactions.map((t) => t.toJson()).toList(),
+        );
+        changed = true;
+      }
+
+      // 3. If records were modified or deleted, update UI state
+      if (changed) {
+        await _loadFromLocal(
+          type: type,
+          accountId: accountId,
+          categoryId: categoryId,
+          search: search,
+        );
+      }
+    } catch (e) {
+      debugPrint('[TransactionProvider] Remote sync error: $e');
+    }
   }
 
-  /// DIRECT-FIRST + SYNC QUEUE FALLBACK: Add transaction
+  /// DIRECT-FIRST + SYNC QUEUE FALLBACK: Add transaction with instant optimistic UI
   Future<bool> addTransaction(Map<String, dynamic> data) async {
     try {
       final txId = _uuid.v4();
       final idempotencyKey = _uuid.v4();
+
+      final amount = (data['amount'] as num).toDouble();
+      final txType = data['type'] as String;
+
+      // Determine creditType if this is a credit repayment
+      String? creditType = data['creditType'] as String?;
+      if (txType == 'credit_repay' && data['creditId'] != null) {
+        final creditId = data['creditId'] as String;
+        final matchingCredit = ref.read(creditProvider).credits.firstWhereOrNull((c) => c.id == creditId);
+        creditType ??= matchingCredit?.type ?? 'taken';
+      }
+
+      // Validate sufficient account balance for non-credit-card debits
+      final isDeduction = txType == 'expense' || txType == 'transfer' || (txType == 'credit_repay' && creditType == 'taken');
+      if (isDeduction && data['accountId'] != null) {
+        final accounts = ref.read(accountProvider).accounts;
+        final acc = accounts.firstWhereOrNull((a) => a.id == data['accountId']);
+        if (acc != null && acc.type != 'credit_card' && acc.balance < amount) {
+          state = state.copyWith(
+            isLoading: false,
+            error: 'Insufficient funds in "${acc.name}". Available balance: ₹${acc.balance.toStringAsFixed(2)}',
+          );
+          return false;
+        }
+      }
 
       // 1. Save to local SQLite instantly (< 5ms)
       final localTx = {
         'id': txId,
         'idempotencyKey': idempotencyKey,
         ...data,
+        if (creditType != null) 'creditType': creditType,
         'date': data['date'] ?? DateTime.now().toIso8601String(),
       };
       await LocalDatabaseService.saveLocalTransaction(localTx, isSynced: false);
 
-      // 2. Update local account balance optimistically
-      final amount = (data['amount'] as num).toDouble();
-      final txType = data['type'] as String;
-      if (data['accountId'] != null) {
-        final balanceDelta = txType == 'income' ? amount : -amount;
-        await LocalDatabaseService.updateLocalAccountBalance(
-          data['accountId'] as String,
-          balanceDelta,
-        );
+      // 2. Update local account balances optimistically matching backend operations
+      if (txType == 'income') {
+        if (data['accountId'] != null) {
+          await LocalDatabaseService.updateLocalAccountBalance(data['accountId'] as String, amount);
+        }
+      } else if (txType == 'expense') {
+        if (data['accountId'] != null) {
+          await LocalDatabaseService.updateLocalAccountBalance(data['accountId'] as String, -amount);
+        }
+      } else if (txType == 'transfer') {
+        if (data['accountId'] != null) {
+          await LocalDatabaseService.updateLocalAccountBalance(data['accountId'] as String, -amount);
+        }
+        if (data['toAccountId'] != null) {
+          await LocalDatabaseService.updateLocalAccountBalance(data['toAccountId'] as String, amount);
+        }
+      } else if (txType == 'credit_repay') {
+        // If credit is 'given' (receivable repaid to us), cash inflow (+amount)
+        // If credit is 'taken' (debt we repaid), cash outflow (-amount)
+        final isReceivable = creditType == 'given';
+        final balanceDelta = isReceivable ? amount : -amount;
+        if (data['accountId'] != null) {
+          await LocalDatabaseService.updateLocalAccountBalance(data['accountId'] as String, balanceDelta);
+        }
+        if (data['creditId'] != null) {
+          ref.read(creditProvider.notifier).recordRepaymentOptimistic(data['creditId'] as String, amount);
+        }
       }
 
       // 3. Refresh UI immediately from local data (<5ms!)
       await _loadFromLocal();
-      ref.read(accountProvider.notifier).fetchAccounts();
+      await ref.read(accountProvider.notifier).loadFromLocal();
       ref.read(analyticsProvider.notifier).fetchAll();
 
-      // 4. Direct API Call First with automatic fallback to sync_queue on failure
-      final response = await SyncManager.executeDirectWithQueueFallback(
-        endpoint: ApiEndpoints.transactions,
-        method: 'POST',
-        payload: data,
-        customIdempotencyKey: idempotencyKey,
-      );
+      // 4. Background direct API call / queue fallback (Optimistic UI - does NOT block user!)
+      unawaited(() async {
+        try {
+          final payloadWithCreditType = {
+            ...data,
+            if (creditType != null) 'creditType': creditType,
+          };
+          final response = await SyncManager.executeDirectWithQueueFallback(
+            endpoint: ApiEndpoints.transactions,
+            method: 'POST',
+            payload: payloadWithCreditType,
+            customIdempotencyKey: idempotencyKey,
+          );
 
-      // 5. If direct API succeeded, update local record with server ID if different
-      if (response != null && response.statusCode != null && response.statusCode! < 400) {
-        if (response.data != null && response.data['transaction'] is Map) {
-          final serverTx = response.data['transaction'] as Map<String, dynamic>;
-          if (serverTx['_id'] != null && serverTx['_id'] != txId) {
-            await LocalDatabaseService.deleteLocalTransaction(txId);
-            await LocalDatabaseService.saveLocalTransaction(serverTx, isSynced: true);
-            await _loadFromLocal();
+          if (response != null && response.statusCode != null && response.statusCode! < 400) {
+            final respData = response.data;
+            final serverTx = (respData is Map && respData['data'] is Map)
+                ? respData['data'] as Map<String, dynamic>
+                : (respData is Map && respData['transaction'] is Map)
+                    ? respData['transaction'] as Map<String, dynamic>
+                    : null;
+
+            if (serverTx != null && serverTx['_id'] != null) {
+              await LocalDatabaseService.deleteLocalTransaction(txId);
+              await LocalDatabaseService.saveLocalTransaction(serverTx, isSynced: true);
+              await _loadFromLocal();
+            }
           }
+          ref.read(accountProvider.notifier).fetchAccounts();
+          ref.read(creditProvider.notifier).fetchCredits();
+          ref.read(analyticsProvider.notifier).fetchAll();
+        } catch (e) {
+          debugPrint('[TransactionProvider] Background sync error: $e');
         }
-      }
+      }());
 
       return true;
     } catch (e) {
@@ -209,22 +313,30 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
       };
       await LocalDatabaseService.saveLocalTransaction(localTx, isSynced: false);
 
-      // 2. Refresh UI
+      // 2. Refresh UI immediately
       await _loadFromLocal();
-      ref.read(accountProvider.notifier).fetchAccounts();
+      await ref.read(accountProvider.notifier).loadFromLocal();
       ref.read(analyticsProvider.notifier).fetchAll();
 
-      // 3. Direct API Call First with fallback to sync_queue
-      final response = await SyncManager.executeDirectWithQueueFallback(
-        endpoint: '${ApiEndpoints.transactions}/$id',
-        method: 'PUT',
-        payload: data,
-        customIdempotencyKey: idempotencyKey,
-      );
-
-      if (response != null && response.statusCode != null && response.statusCode! < 400) {
-        await LocalDatabaseService.saveLocalTransaction(localTx, isSynced: true);
-      }
+      // 3. Direct API Call in background with fallback to sync_queue
+      unawaited(() async {
+        try {
+          final response = await SyncManager.executeDirectWithQueueFallback(
+            endpoint: '${ApiEndpoints.transactions}/$id',
+            method: 'PUT',
+            payload: data,
+            customIdempotencyKey: idempotencyKey,
+          );
+          if (response != null && response.statusCode != null && response.statusCode! < 400) {
+            await LocalDatabaseService.saveLocalTransaction(localTx, isSynced: true);
+          }
+          ref.read(accountProvider.notifier).fetchAccounts();
+          ref.read(creditProvider.notifier).fetchCredits();
+          ref.read(analyticsProvider.notifier).fetchAll();
+        } catch (e) {
+          debugPrint('[TransactionProvider] Update background sync error: $e');
+        }
+      }());
 
       return true;
     } catch (e) {
@@ -238,21 +350,61 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
     try {
       final idempotencyKey = _uuid.v4();
 
+      // Revert balance effect locally on SQLite
+      final existingTx = state.transactions.firstWhereOrNull((t) => t.id == id);
+      if (existingTx != null) {
+        final amount = existingTx.amount;
+        if (existingTx.type == 'income') {
+          if (existingTx.accountId != null) {
+            await LocalDatabaseService.updateLocalAccountBalance(existingTx.accountId!, -amount);
+          }
+        } else if (existingTx.type == 'expense') {
+          if (existingTx.accountId != null) {
+            await LocalDatabaseService.updateLocalAccountBalance(existingTx.accountId!, amount);
+          }
+        } else if (existingTx.type == 'transfer') {
+          if (existingTx.accountId != null) {
+            await LocalDatabaseService.updateLocalAccountBalance(existingTx.accountId!, amount);
+          }
+          if (existingTx.toAccountId != null) {
+            await LocalDatabaseService.updateLocalAccountBalance(existingTx.toAccountId!, -amount);
+          }
+        } else if (existingTx.type == 'credit_repay') {
+          final isReceivable = existingTx.creditType == 'given';
+          final balanceDelta = isReceivable ? -amount : amount;
+          if (existingTx.accountId != null) {
+            await LocalDatabaseService.updateLocalAccountBalance(existingTx.accountId!, balanceDelta);
+          }
+          if (existingTx.creditId != null) {
+            ref.read(creditProvider.notifier).recordRepaymentOptimistic(existingTx.creditId!, -amount);
+          }
+        }
+      }
+
       // 1. Delete from local SQLite instantly
       await LocalDatabaseService.deleteLocalTransaction(id);
 
-      // 2. Refresh UI
+      // 2. Refresh UI immediately from local
       await _loadFromLocal();
-      ref.read(accountProvider.notifier).fetchAccounts();
+      await ref.read(accountProvider.notifier).loadFromLocal();
       ref.read(analyticsProvider.notifier).fetchAll();
 
-      // 3. Direct API Call First with fallback to sync_queue
-      await SyncManager.executeDirectWithQueueFallback(
-        endpoint: '${ApiEndpoints.transactions}/$id',
-        method: 'DELETE',
-        payload: {},
-        customIdempotencyKey: idempotencyKey,
-      );
+      // 3. Direct API Call First with fallback to sync_queue in background
+      unawaited(() async {
+        try {
+          await SyncManager.executeDirectWithQueueFallback(
+            endpoint: '${ApiEndpoints.transactions}/$id',
+            method: 'DELETE',
+            payload: {},
+            customIdempotencyKey: idempotencyKey,
+          );
+          ref.read(accountProvider.notifier).fetchAccounts();
+          ref.read(creditProvider.notifier).fetchCredits();
+          ref.read(analyticsProvider.notifier).fetchAll();
+        } catch (e) {
+          debugPrint('[TransactionProvider] Delete background sync error: $e');
+        }
+      }());
 
       return true;
     } catch (e) {
@@ -296,10 +448,14 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
       type: row['type'] as String? ?? 'expense',
       accountId: row['accountId'] as String?,
       accountName: row['accountName'] as String?,
+      toAccountId: row['toAccountId'] as String?,
       categoryId: row['categoryId'] as String?,
       categoryName: row['categoryName'] as String?,
       parentCategoryName: row['parentCategoryName'] as String?,
       subCategoryName: row['subCategoryName'] as String?,
+      creditId: row['creditId'] as String?,
+      creditType: row['creditType'] as String?,
+      merchantName: row['merchantName'] as String?,
       note: row['note'] as String?,
       date: row['date'] as String? ?? '',
       isItemized: (row['isItemized'] as int?) == 1,

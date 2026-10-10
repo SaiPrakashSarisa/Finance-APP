@@ -55,7 +55,7 @@ const transactionService = {
 
     // Get transactions with filters
     async getAll(userId, filters = {}) {
-        const conditions = [{ userId }];
+        const conditions = [{ userId, isDeleted: { $ne: true } }];
 
         if (filters.accountId) {
             conditions.push({
@@ -122,12 +122,27 @@ const transactionService = {
             Transaction.countDocuments(query)
         ]);
 
-        return { transactions, total, page, pages: Math.ceil(total / limit) };
+        // Retrieve soft-deleted transactions to propagate tombstones to mobile client
+        const deletedQuery = { userId, isDeleted: true };
+        if (filters.since) {
+            deletedQuery.deletedAt = { $gte: new Date(filters.since) };
+        }
+        const deletedRecords = await Transaction.find(deletedQuery).select('_id').lean();
+        const deletedIds = deletedRecords.map(d => d._id.toString());
+
+        return {
+            transactions,
+            total,
+            page,
+            pages: Math.ceil(total / limit),
+            deletedIds,
+            serverTime: new Date().toISOString()
+        };
     },
 
     // Get single transaction
     async getById(transactionId, userId) {
-        return Transaction.findOne({ _id: transactionId, userId })
+        return Transaction.findOne({ _id: transactionId, userId, isDeleted: { $ne: true } })
             .populate('accountId', 'name type')
             .populate('toAccountId', 'name type')
             .populate('categoryId', 'name color icon type')
@@ -138,6 +153,8 @@ const transactionService = {
     // Helper: apply balance effect for a transaction
     async _applyBalanceEffect(tx, multiplier = 1, session = null) {
         const amount = tx.amount * multiplier;
+        const isReversal = multiplier < 0;
+        const allowNegative = isReversal; // New transactions enforce sufficient funds; reversals allow negative
         const meta = {
             userId: tx.userId,
             transactionId: tx._id,
@@ -150,10 +167,10 @@ const transactionService = {
                 await accountService.updateBalance(tx.accountId, amount, session, true, meta);
                 break;
             case 'expense':
-                await accountService.updateBalance(tx.accountId, -amount, session, true, meta);
+                await accountService.updateBalance(tx.accountId, -amount, session, allowNegative, meta);
                 break;
             case 'transfer':
-                await accountService.updateBalance(tx.accountId, -amount, session, true, { ...meta, description: 'Transfer Out' });
+                await accountService.updateBalance(tx.accountId, -amount, session, allowNegative, { ...meta, description: 'Transfer Out' });
                 await accountService.updateBalance(tx.toAccountId, amount, session, true, { ...meta, description: 'Transfer In' });
                 break;
             case 'credit_repay':
@@ -164,7 +181,7 @@ const transactionService = {
                         if (credit.type === 'given') {
                             await accountService.updateBalance(tx.accountId, amount, session, true, meta);
                         } else {
-                            await accountService.updateBalance(tx.accountId, -amount, session, true, meta);
+                            await accountService.updateBalance(tx.accountId, -amount, session, allowNegative, meta);
                         }
                     }
                 }
@@ -181,7 +198,8 @@ const transactionService = {
             // Handle credit_repay: validate and apply repayment
             if (data.type === 'credit_repay') {
                 if (!data.creditId) throw new Error('Credit entry is required for repayment');
-                await creditService.applyRepayment(data.creditId, data.userId, data.amount, session);
+                const credit = await creditService.applyRepayment(data.creditId, data.userId, data.amount, session);
+                data.creditType = credit.type;
             }
 
             const transaction = new Transaction(data);
@@ -206,7 +224,7 @@ const transactionService = {
     // Update transaction with Change Detection (Only modify balances if financial fields changed)
     async update(transactionId, userId, updates) {
         return runInTransaction(async (session) => {
-            const existing = await Transaction.findOne({ _id: transactionId, userId }).session(session);
+            const existing = await Transaction.findOne({ _id: transactionId, userId, isDeleted: { $ne: true } }).session(session);
             if (!existing) throw new Error('Transaction not found');
 
             const financialFieldsChanged = (
@@ -238,7 +256,10 @@ const transactionService = {
             });
             if (existing.type !== 'transfer') existing.toAccountId = null;
             if (existing.type === 'transfer') existing.categoryId = null;
-            if (existing.type !== 'credit_repay') existing.creditId = null;
+            if (existing.type !== 'credit_repay') {
+                existing.creditId = null;
+                existing.creditType = null;
+            }
 
             // Recalculate amount if itemized
             if (existing.isItemized && Array.isArray(existing.items) && existing.items.length > 0) {
@@ -251,7 +272,9 @@ const transactionService = {
             if (financialFieldsChanged) {
                 // 4. Apply new credit repayment if applicable
                 if (existing.type === 'credit_repay' && existing.creditId) {
-                    await creditService.applyRepayment(existing.creditId, userId, existing.amount, session);
+                    const credit = await creditService.applyRepayment(existing.creditId, userId, existing.amount, session);
+                    existing.creditType = credit.type;
+                    await existing.save({ session });
                 }
 
                 // 5. Apply new balance effect
@@ -271,10 +294,10 @@ const transactionService = {
         });
     },
 
-    // Delete transaction and reverse balance
+    // Delete transaction and reverse balance (Soft-delete / Tombstone)
     async delete(transactionId, userId) {
         return runInTransaction(async (session) => {
-            const transaction = await Transaction.findOne({ _id: transactionId, userId }).session(session);
+            const transaction = await Transaction.findOne({ _id: transactionId, userId, isDeleted: { $ne: true } }).session(session);
             if (!transaction) throw new Error('Transaction not found');
 
             // Reverse balance effect
@@ -285,7 +308,10 @@ const transactionService = {
                 await creditService.reverseRepayment(transaction.creditId, userId, transaction.amount, session);
             }
 
-            await Transaction.deleteOne({ _id: transactionId }, { session });
+            // Soft-delete transaction (Tombstone)
+            transaction.isDeleted = true;
+            transaction.deletedAt = new Date();
+            await transaction.save({ session });
 
             // Invalidate cache
             cache.clearUserCache(userId);
@@ -296,7 +322,7 @@ const transactionService = {
 
     // Export all user transactions to standard CSV format
     async exportCSV(userId) {
-        const transactions = await Transaction.find({ userId })
+        const transactions = await Transaction.find({ userId, isDeleted: { $ne: true } })
             .populate('accountId', 'name')
             .populate({
                 path: 'categoryId',

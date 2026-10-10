@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
@@ -14,7 +15,7 @@ import 'package:uuid/uuid.dart';
 class LocalDatabaseService {
   static Database? _db;
   static const _uuid = Uuid();
-  static const int _dbVersion = 2; // v2: adds budgets + sync_meta tables
+  static const int _dbVersion = 3; // v3: adds creditId, creditType, merchantName columns
 
   static Future<Database> get db async {
     if (_db != null) return _db!;
@@ -53,6 +54,18 @@ class LocalDatabaseService {
               value TEXT NOT NULL
             )
           ''');
+        }
+        if (oldVersion < 3) {
+          // Migration: Add creditId, creditType, merchantName columns
+          try {
+            await db.execute('ALTER TABLE transactions ADD COLUMN creditId TEXT;');
+          } catch (_) {}
+          try {
+            await db.execute('ALTER TABLE transactions ADD COLUMN creditType TEXT;');
+          } catch (_) {}
+          try {
+            await db.execute('ALTER TABLE transactions ADD COLUMN merchantName TEXT;');
+          } catch (_) {}
         }
       },
     );
@@ -99,6 +112,9 @@ class LocalDatabaseService {
         categoryName TEXT,
         parentCategoryName TEXT,
         subCategoryName TEXT,
+        creditId TEXT,
+        creditType TEXT,
+        merchantName TEXT,
         note TEXT,
         date TEXT NOT NULL,
         toAccountId TEXT,
@@ -257,17 +273,20 @@ class LocalDatabaseService {
       {
         'id': tx['id'] ?? tx['_id'] ?? _uuid.v4(),
         'idempotencyKey': tx['idempotencyKey'] ?? _uuid.v4(),
-        'accountId': tx['accountId'] is Map ? tx['accountId']['_id'] : tx['accountId'],
+        'accountId': tx['accountId'] is Map ? tx['accountId']['_id'] : (tx['accountId'] ?? ''),
         'accountName': tx['accountName'] ?? (tx['accountId'] is Map ? tx['accountId']['name'] : null),
-        'type': tx['type'],
+        'type': tx['type'] ?? 'expense',
         'amount': (tx['amount'] as num).toDouble(),
         'categoryId': tx['categoryId'] is Map ? tx['categoryId']['_id'] : tx['categoryId'],
         'categoryName': tx['categoryName'] ?? (tx['categoryId'] is Map ? tx['categoryId']['name'] : null),
         'parentCategoryName': tx['parentCategoryName'],
         'subCategoryName': tx['subCategoryName'],
-        'note': tx['note'] ?? '',
+        'creditId': tx['creditId'] is Map ? tx['creditId']['_id'] : tx['creditId'],
+        'creditType': tx['creditType'] ?? (tx['creditId'] is Map ? tx['creditId']['type'] : null),
+        'merchantName': tx['merchantName'] ?? (tx['merchantId'] is Map ? tx['merchantId']['name'] : null),
+        'note': tx['note'] ?? tx['notes'] ?? '',
         'date': tx['date'] ?? DateTime.now().toIso8601String(),
-        'toAccountId': tx['toAccountId'],
+        'toAccountId': tx['toAccountId'] is Map ? tx['toAccountId']['_id'] : tx['toAccountId'],
         'isItemized': (tx['isItemized'] == true) ? 1 : 0,
         'items': itemsJson,
         'isSynced': isSynced ? 1 : 0,
@@ -303,9 +322,12 @@ class LocalDatabaseService {
           'subCategoryName': tx['categoryId'] is Map && tx['categoryId']['parentCategoryId'] is Map
               ? tx['categoryId']['name']
               : tx['subCategoryName'],
+          'creditId': tx['creditId'] is Map ? tx['creditId']['_id'] : tx['creditId'],
+          'creditType': tx['creditType'] ?? (tx['creditId'] is Map ? tx['creditId']['type'] : null),
+          'merchantName': tx['merchantName'] ?? (tx['merchantId'] is Map ? tx['merchantId']['name'] : null),
           'note': tx['note'] ?? tx['notes'] ?? '',
           'date': tx['date'] ?? DateTime.now().toIso8601String(),
-          'toAccountId': tx['toAccountId'],
+          'toAccountId': tx['toAccountId'] is Map ? tx['toAccountId']['_id'] : tx['toAccountId'],
           'isItemized': (tx['isItemized'] == true) ? 1 : 0,
           'items': itemsJson,
           'isSynced': 1,
@@ -316,28 +338,65 @@ class LocalDatabaseService {
     await batch.commit(noResult: true);
   }
 
+  /// Purge orphaned optimistic transactions that have a matching synced transaction from server
+  static Future<void> deduplicateTransactions() async {
+    try {
+      final database = await db;
+      await database.rawDelete('''
+        DELETE FROM transactions 
+        WHERE isSynced = 0 
+          AND id IN (
+            SELECT t1.id FROM transactions t1
+            JOIN transactions t2 ON t1.accountId = t2.accountId 
+              AND t1.amount = t2.amount 
+              AND t1.type = t2.type 
+              AND t1.isSynced = 0 
+              AND t2.isSynced = 1
+              AND t1.id != t2.id
+              AND SUBSTR(t1.date, 1, 10) = SUBSTR(t2.date, 1, 10)
+          )
+      ''');
+    } catch (e) {
+      debugPrint('[LocalDatabaseService] deduplicate error: $e');
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> getLocalTransactions({
     String? type,
     String? accountId,
     String? categoryId,
+    String? creditId,
     DateTime? startDate,
     DateTime? endDate,
   }) async {
+    await deduplicateTransactions();
+
     final database = await db;
     final where = <String>[];
     final whereArgs = <dynamic>[];
 
     if (type != null && type != 'all' && type.isNotEmpty) {
-      where.add('type = ?');
-      whereArgs.add(type);
+      if (type == 'income') {
+        where.add("(type = 'income' OR (type = 'credit_repay' AND creditType = 'given'))");
+      } else if (type == 'expense') {
+        where.add("(type = 'expense' OR (type = 'credit_repay' AND (creditType = 'taken' OR creditType IS NULL)))");
+      } else {
+        where.add('type = ?');
+        whereArgs.add(type);
+      }
     }
     if (accountId != null && accountId.isNotEmpty) {
-      where.add('accountId = ?');
+      where.add('(accountId = ? OR toAccountId = ?)');
+      whereArgs.add(accountId);
       whereArgs.add(accountId);
     }
     if (categoryId != null && categoryId.isNotEmpty) {
       where.add('categoryId = ?');
       whereArgs.add(categoryId);
+    }
+    if (creditId != null && creditId.isNotEmpty) {
+      where.add('creditId = ?');
+      whereArgs.add(creditId);
     }
     if (startDate != null) {
       where.add('date >= ?');
@@ -359,6 +418,17 @@ class LocalDatabaseService {
   static Future<void> deleteLocalTransaction(String id) async {
     final database = await db;
     await database.delete('transactions', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Batch-delete transactions (e.g. tombstones received from server)
+  static Future<void> deleteLocalTransactions(List<String> ids) async {
+    if (ids.isEmpty) return;
+    final database = await db;
+    final batch = database.batch();
+    for (final id in ids) {
+      batch.delete('transactions', where: 'id = ?', whereArgs: [id]);
+    }
+    await batch.commit(noResult: true);
   }
 
   static Future<void> clearLocalTransactions() async {
@@ -439,7 +509,7 @@ class LocalDatabaseService {
           'balance': (a['balance'] as num).toDouble(),
           'initialBalance': (a['initialBalance'] as num? ?? 0).toDouble(),
           'currency': a['currency'] ?? 'INR',
-          'isActive': (a['isActive'] ?? true) ? 1 : 0,
+          'isActive': (a['isActive'] == 1 || a['isActive'] == true || a['isActive'] == null) ? 1 : 0,
           'isSynced': 1,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,

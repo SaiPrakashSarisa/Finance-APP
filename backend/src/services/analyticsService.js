@@ -47,18 +47,52 @@ const analyticsService = {
         const { startDate, endDate } = await this._getDateRange(userId, month, year);
 
         const [totals, accounts, creditTotals] = await Promise.all([
-            // Income/expense totals for range
+            // Income/expense totals for range (including credit repayments mapped by cash flow direction)
             Transaction.aggregate([
                 {
                     $match: {
                         userId: new mongoose.Types.ObjectId(userId),
+                        isDeleted: { $ne: true },
                         date: { $gte: startDate, $lte: endDate },
-                        type: { $in: ['income', 'expense'] }
+                        type: { $in: ['income', 'expense', 'credit_repay'] }
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'credits',
+                        localField: 'creditId',
+                        foreignField: '_id',
+                        as: 'creditDoc'
+                    }
+                },
+                {
+                    $addFields: {
+                        resolvedCreditType: {
+                            $ifNull: ['$creditType', { $arrayElemAt: ['$creditDoc.type', 0] }]
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        amount: 1,
+                        effectiveType: {
+                            $cond: {
+                                if: { $eq: ['$type', 'credit_repay'] },
+                                then: {
+                                    $cond: {
+                                        if: { $eq: ['$resolvedCreditType', 'given'] },
+                                        then: 'income',
+                                        else: 'expense'
+                                    }
+                                },
+                                else: '$type'
+                            }
+                        }
                     }
                 },
                 {
                     $group: {
-                        _id: '$type',
+                        _id: '$effectiveType',
                         total: { $sum: '$amount' }
                     }
                 }
@@ -101,6 +135,7 @@ const analyticsService = {
             {
                 $match: {
                     userId: new mongoose.Types.ObjectId(userId),
+                    isDeleted: { $ne: true },
                     type: 'expense',
                     date: { $gte: startDate, $lte: endDate }
                 }
@@ -202,8 +237,43 @@ const analyticsService = {
             {
                 $match: {
                     userId: new mongoose.Types.ObjectId(userId),
+                    isDeleted: { $ne: true },
                     date: { $gte: sixMonthsAgo },
-                    type: { $in: ['income', 'expense'] }
+                    type: { $in: ['income', 'expense', 'credit_repay'] }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'credits',
+                    localField: 'creditId',
+                    foreignField: '_id',
+                    as: 'creditDoc'
+                }
+            },
+            {
+                $addFields: {
+                    resolvedCreditType: {
+                        $ifNull: ['$creditType', { $arrayElemAt: ['$creditDoc.type', 0] }]
+                    }
+                }
+            },
+            {
+                $project: {
+                    amount: 1,
+                    date: 1,
+                    effectiveType: {
+                        $cond: {
+                            if: { $eq: ['$type', 'credit_repay'] },
+                            then: {
+                                $cond: {
+                                    if: { $eq: ['$resolvedCreditType', 'given'] },
+                                    then: 'income',
+                                    else: 'expense'
+                                }
+                            },
+                            else: '$type'
+                        }
+                    }
                 }
             },
             {
@@ -211,7 +281,7 @@ const analyticsService = {
                     _id: {
                         year: { $year: '$date' },
                         month: { $month: '$date' },
-                        type: '$type'
+                        type: '$effectiveType'
                     },
                     total: { $sum: '$amount' }
                 }
@@ -234,13 +304,47 @@ const analyticsService = {
                 {
                     $match: {
                         userId: new mongoose.Types.ObjectId(userId),
+                        isDeleted: { $ne: true },
                         date: { $gte: startDate, $lte: endDate },
-                        type: { $in: ['income', 'expense'] }
+                        type: { $in: ['income', 'expense', 'credit_repay'] }
+                    }
+                },
+                {
+                    $lookup: {
+                        from: 'credits',
+                        localField: 'creditId',
+                        foreignField: '_id',
+                        as: 'creditDoc'
+                    }
+                },
+                {
+                    $addFields: {
+                        resolvedCreditType: {
+                            $ifNull: ['$creditType', { $arrayElemAt: ['$creditDoc.type', 0] }]
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        amount: 1,
+                        effectiveType: {
+                            $cond: {
+                                if: { $eq: ['$type', 'credit_repay'] },
+                                then: {
+                                    $cond: {
+                                        if: { $eq: ['$resolvedCreditType', 'given'] },
+                                        then: 'income',
+                                        else: 'expense'
+                                    }
+                                },
+                                else: '$type'
+                            }
+                        }
                     }
                 },
                 {
                     $group: {
-                        _id: '$type',
+                        _id: '$effectiveType',
                         total: { $sum: '$amount' }
                     }
                 }
@@ -251,6 +355,7 @@ const analyticsService = {
                 {
                     $match: {
                         userId: new mongoose.Types.ObjectId(userId),
+                        isDeleted: { $ne: true },
                         type: 'expense',
                         date: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
                     }
@@ -278,6 +383,7 @@ const analyticsService = {
             {
                 $match: {
                     userId: new mongoose.Types.ObjectId(userId),
+                    isDeleted: { $ne: true },
                     type: 'expense',
                     date: { $gte: startDate, $lte: endDate }
                 }
@@ -329,6 +435,7 @@ const analyticsService = {
             {
                 $match: {
                     userId: new mongoose.Types.ObjectId(userId),
+                    isDeleted: { $ne: true },
                     isItemized: true,
                     'items.name': { $regex: regex }
                 }
@@ -388,6 +495,7 @@ const analyticsService = {
             {
                 $match: {
                     userId: new mongoose.Types.ObjectId(userId),
+                    isDeleted: { $ne: true },
                     isItemized: true
                 }
             },
@@ -446,6 +554,7 @@ const analyticsService = {
             {
                 $match: {
                     userId: new mongoose.Types.ObjectId(userId),
+                    isDeleted: { $ne: true },
                     type: 'expense',
                     merchantName: { $ne: '' }
                 }
@@ -471,6 +580,7 @@ const analyticsService = {
             {
                 $match: {
                     userId: new mongoose.Types.ObjectId(userId),
+                    isDeleted: { $ne: true },
                     isItemized: true,
                     merchantName: { $ne: '' }
                 }
@@ -519,6 +629,7 @@ const analyticsService = {
             {
                 $match: {
                     userId: new mongoose.Types.ObjectId(userId),
+                    isDeleted: { $ne: true },
                     type: 'expense'
                 }
             },

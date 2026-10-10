@@ -14,6 +14,7 @@ import '../../data/models/budget_model.dart';
 import '../../data/models/credit_model.dart';
 import '../../data/models/transaction_model.dart';
 import '../widgets/add_category_dialog.dart';
+import '../widgets/skeleton_loaders.dart';
 
 /// Purpose: Budgets & Debt Tracker Financial Hub Screen
 /// Author: Antigravity AI
@@ -570,6 +571,7 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
     String subType = 'account_credit'; // 'account_credit' or 'emi_loan'
     String? selectedAccountId;
     DateTime? selectedDueDate;
+    bool isSubmitting = false;
 
     final accountState = ref.read(accountProvider);
     if (accountState.accounts.isNotEmpty) {
@@ -821,34 +823,59 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
 
                     // Submit Button
                     ElevatedButton(
-                      onPressed: () async {
-                        final person = personController.text.trim();
-                        final amt = double.tryParse(amountController.text.trim()) ?? 0.0;
-                        if (person.isNotEmpty && amt > 0) {
-                          final Map<String, dynamic> body = {
-                            'type': type,
-                            'subType': subType,
-                            'personName': person,
-                            'amount': amt,
-                            'notes': notesController.text.trim(),
-                            if (subType == 'account_credit' && selectedAccountId != null) 'linkedAccountId': selectedAccountId,
-                            if (selectedDueDate != null) 'dueDate': selectedDueDate!.toIso8601String(),
-                          };
+                      onPressed: isSubmitting
+                          ? null
+                          : () async {
+                              final person = personController.text.trim();
+                              final amt = double.tryParse(amountController.text.trim()) ?? 0.0;
+                              if (person.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please enter a person name.')),
+                                );
+                                return;
+                              }
+                              if (amt <= 0) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please enter a valid amount.')),
+                                );
+                                return;
+                              }
 
-                          final ok = await ref.read(creditProvider.notifier).addCredit(body);
-                          if (ok) {
-                            ref.read(accountProvider.notifier).fetchAccounts();
-                            ref.read(analyticsProvider.notifier).fetchAll();
-                            if (mounted) Navigator.pop(context);
-                          }
-                        }
-                      },
+                              setModalState(() => isSubmitting = true);
+
+                              final Map<String, dynamic> body = {
+                                'type': type,
+                                'subType': subType,
+                                'personName': person,
+                                'amount': amt,
+                                'notes': notesController.text.trim(),
+                                if (subType == 'account_credit' && selectedAccountId != null) 'linkedAccountId': selectedAccountId,
+                                if (selectedDueDate != null) 'dueDate': selectedDueDate!.toIso8601String(),
+                              };
+
+                              final ok = await ref.read(creditProvider.notifier).addCredit(body);
+                              if (ok && mounted) {
+                                ref.read(accountProvider.notifier).fetchAccounts();
+                                ref.read(analyticsProvider.notifier).fetchAll();
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Credit record for $person saved!'),
+                                    backgroundColor: AppColors.incomeEmerald,
+                                  ),
+                                );
+                              } else if (mounted) {
+                                setModalState(() => isSubmitting = false);
+                              }
+                            },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryViolet,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: Text('Save Record', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+                      child: isSubmitting
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : Text('Save Record', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
                     ),
                   ],
                 ),
@@ -865,6 +892,7 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
     final noteController = TextEditingController();
     String? selectedAccountId;
     DateTime selectedDate = DateTime.now();
+    bool isSubmitting = false;
 
     final accountState = ref.read(accountProvider);
     if (accountState.accounts.isNotEmpty) {
@@ -1018,34 +1046,63 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
 
                     // Submit Repayment Button
                     ElevatedButton(
-                      onPressed: () async {
-                        final amt = double.tryParse(amountController.text.trim()) ?? 0.0;
-                        if (amt > 0 && selectedAccountId != null) {
-                          final ok = await ref.read(transactionProvider.notifier).addTransaction({
-                            'type': 'credit_repay',
-                            'amount': amt,
-                            'accountId': selectedAccountId,
-                            'creditId': credit.id,
-                            'date': selectedDate.toIso8601String(),
-                            'notes': noteController.text.trim().isNotEmpty
-                                ? noteController.text.trim()
-                                : 'Repayment towards ${credit.personName}',
-                          });
+                      onPressed: isSubmitting
+                          ? null
+                          : () async {
+                              final amt = double.tryParse(amountController.text.trim()) ?? 0.0;
+                              if (amt <= 0) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please enter a valid repayment amount.')),
+                                );
+                                return;
+                              }
+                              if (amt > credit.remainingAmount) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Repayment amount exceeds remaining due of ₹${credit.remainingAmount}.')),
+                                );
+                                return;
+                              }
+                              if (selectedAccountId == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please select a payment account.')),
+                                );
+                                return;
+                              }
 
-                          if (ok) {
-                            await ref.read(creditProvider.notifier).fetchCredits();
-                            await ref.read(accountProvider.notifier).fetchAccounts();
-                            await ref.read(analyticsProvider.notifier).fetchAll();
-                            if (mounted) Navigator.pop(context);
-                          }
-                        }
-                      },
+                              setModalState(() => isSubmitting = true);
+
+                              final ok = await ref.read(transactionProvider.notifier).addTransaction({
+                                'type': 'credit_repay',
+                                'amount': amt,
+                                'accountId': selectedAccountId,
+                                'creditId': credit.id,
+                                'creditType': credit.type,
+                                'date': selectedDate.toIso8601String(),
+                                'note': noteController.text.trim().isNotEmpty
+                                    ? noteController.text.trim()
+                                    : 'Repayment towards ${credit.personName}',
+                              });
+
+                              if (ok && mounted) {
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Repayment of ₹$amt recorded successfully!'),
+                                    backgroundColor: AppColors.incomeEmerald,
+                                  ),
+                                );
+                              } else if (mounted) {
+                                setModalState(() => isSubmitting = false);
+                              }
+                            },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primaryViolet,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: Text('Confirm Repayment', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+                      child: isSubmitting
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : Text('Confirm Repayment', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
                     ),
                   ],
                 ),
@@ -1275,15 +1332,20 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
                       separatorBuilder: (_, __) => Divider(height: 1, color: AppColors.outlineVariant.withOpacity(0.3)),
                       itemBuilder: (context, index) {
                         final tx = creditRepayments[index];
+                        final parsedDate = DateTime.tryParse(tx.date) ?? DateTime.now();
+                        final isReceivable = tx.creditType == 'given' || credit.type == 'given';
+                        final sign = isReceivable ? '+' : '-';
+                        final color = isReceivable ? AppColors.incomeEmerald : AppColors.expenseRose;
+
                         return ListTile(
                           dense: true,
-                          leading: const Icon(Icons.check_circle_outline_rounded, color: AppColors.incomeEmerald, size: 20),
+                          leading: Icon(Icons.check_circle_outline_rounded, color: color, size: 20),
                           title: Text(
-                            currencyFormatter.format(tx.amount),
-                            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.onSurface),
+                            '$sign ${currencyFormatter.format(tx.amount)}',
+                            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: color),
                           ),
                           subtitle: Text(
-                            '${dateFormatter.format(DateTime.parse(tx.date))} • ${tx.accountName ?? "Account"}',
+                            '${dateFormatter.format(parsedDate)} • ${tx.accountName ?? "Account"}${tx.note != null && tx.note!.isNotEmpty ? " • ${tx.note}" : ""}',
                             style: GoogleFonts.outfit(fontSize: 11, color: AppColors.onSurfaceVariant),
                           ),
                         );
@@ -1391,7 +1453,7 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
 
   Widget _buildBudgetsTab(BudgetState budgetState) {
     if (budgetState.isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+      return const BudgetsTabSkeleton();
     }
 
     final summary = budgetState.summary;
@@ -1450,25 +1512,10 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
           ),
           const SizedBox(height: 20),
 
-          // Header with Create Budget Button
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Category Budgets',
-                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.onSurface),
-              ),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
-                label: Text('Create Budget', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryViolet,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                ),
-                onPressed: _showCreateBudgetSheet,
-              ),
-            ],
+          // Section Header
+          Text(
+            'Category Budgets',
+            style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.onSurface),
           ),
           const SizedBox(height: 10),
 
@@ -1484,16 +1531,10 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
                       'No category budgets configured yet',
                       style: GoogleFonts.outfit(color: AppColors.onSurfaceVariant, fontSize: 14),
                     ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
-                      label: Text('Create First Budget', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryViolet,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                      ),
-                      onPressed: _showCreateBudgetSheet,
+                    const SizedBox(height: 6),
+                    Text(
+                      'Tap + above to create one',
+                      style: GoogleFonts.outfit(color: AppColors.outline, fontSize: 12),
                     ),
                   ],
                 ),
@@ -1596,7 +1637,7 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
 
   Widget _buildCreditsTab(CreditState creditState) {
     if (creditState.isLoading) {
-      return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+      return const CreditsTabSkeleton();
     }
 
     final filteredCredits = creditState.credits.where((c) {

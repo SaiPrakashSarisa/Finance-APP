@@ -9,6 +9,7 @@ import '../providers/category_provider.dart';
 import '../../data/models/transaction_model.dart';
 
 import '../../core/constants/category_icons.dart';
+import '../widgets/skeleton_loaders.dart';
 
 /// Purpose: Ledger Transactions Screen
 /// Author: Antigravity AI
@@ -44,6 +45,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     String? selectedAccountId = tx.accountId;
     String? selectedCategoryId = tx.categoryId;
     DateTime selectedDate = DateTime.tryParse(tx.date) ?? DateTime.now();
+    bool isSaving = false;
 
     showModalBottomSheet(
       context: context,
@@ -236,29 +238,48 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      onPressed: () async {
-                        final amt = double.tryParse(amountController.text.trim()) ?? 0.0;
-                        if (amt > 0 && selectedAccountId != null) {
-                          final payload = <String, dynamic>{
-                            'type': tx.type,
-                            'amount': amt,
-                            'accountId': selectedAccountId,
-                            'note': noteController.text.trim(),
-                            'date': selectedDate.toIso8601String(),
-                          };
-                          if (selectedCategoryId != null) {
-                            payload['categoryId'] = selectedCategoryId;
-                          }
-                          final ok = await ref.read(transactionProvider.notifier).updateTransaction(tx.id, payload);
-                          if (ok && mounted) {
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Transaction Updated & Balance Re-adjusted!')),
-                            );
-                          }
-                        }
-                      },
-                      child: Text('Update Transaction', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              final amt = double.tryParse(amountController.text.trim()) ?? 0.0;
+                              if (amt <= 0) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please enter a valid amount.')),
+                                );
+                                return;
+                              }
+                              if (selectedAccountId == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please select an account.')),
+                                );
+                                return;
+                              }
+
+                              setModalState(() => isSaving = true);
+
+                              final payload = <String, dynamic>{
+                                'type': tx.type,
+                                'amount': amt,
+                                'accountId': selectedAccountId,
+                                'note': noteController.text.trim(),
+                                'date': selectedDate.toIso8601String(),
+                              };
+                              if (selectedCategoryId != null) {
+                                payload['categoryId'] = selectedCategoryId;
+                              }
+                              final ok = await ref.read(transactionProvider.notifier).updateTransaction(tx.id, payload);
+                              if (ok && mounted) {
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Transaction Updated & Balance Re-adjusted!')),
+                                );
+                              } else if (mounted) {
+                                setModalState(() => isSaving = false);
+                              }
+                            },
+                      child: isSaving
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : Text('Update Transaction', style: GoogleFonts.outfit(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
                     ),
                   ],
                 ),
@@ -580,7 +601,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 color: AppColors.primary,
                 backgroundColor: AppColors.surfaceContainerHigh,
                 child: transactionState.isLoading
-                    ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                    ? const TransactionListSkeleton(count: 8)
                     : transactionState.transactions.isEmpty
                         ? Center(
                             child: Column(
@@ -645,14 +666,22 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     final isIncome = tx.type == 'income';
     final isTransfer = tx.type == 'transfer';
     final isCreditRepay = tx.type == 'credit_repay';
+    final isRepayInflow = isCreditRepay && tx.creditType == 'given';
+    final isRepayOutflow = isCreditRepay && tx.creditType != 'given';
 
-    final Color color = isIncome
+    final Color color = (isIncome || isRepayInflow)
         ? AppColors.incomeEmerald
         : isTransfer
             ? AppColors.transferAmber
-            : isCreditRepay
-                ? AppColors.creditCyan
+            : isRepayOutflow
+                ? AppColors.expenseRose
                 : AppColors.expenseRose;
+
+    final String prefix = (isIncome || isRepayInflow)
+        ? '+'
+        : isTransfer
+            ? ''
+            : '-';
 
     return GestureDetector(
       onTap: () => _showItemizedDetailSheet(tx),
@@ -674,7 +703,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 border: Border.all(color: color.withOpacity(0.3)),
               ),
               child: Icon(
-                isIncome
+                (isIncome || isRepayInflow)
                     ? Icons.arrow_downward_rounded
                     : isTransfer
                         ? Icons.swap_horiz_rounded
@@ -693,7 +722,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                   Text(
                     tx.note != null && tx.note!.isNotEmpty
                         ? tx.note!
-                        : (tx.categoryName ?? (isTransfer ? 'Transfer' : 'Expense')),
+                        : (tx.categoryName ?? (isTransfer ? 'Transfer' : isCreditRepay ? 'Repayment' : 'Expense')),
                     style: GoogleFonts.outfit(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
@@ -730,7 +759,7 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  '${isIncome ? '+' : (isTransfer || isCreditRepay) ? '' : '-'} ${currencyFormatter.format(tx.amount)}',
+                  '$prefix ${currencyFormatter.format(tx.amount)}',
                   style: GoogleFonts.outfit(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,

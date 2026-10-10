@@ -296,10 +296,19 @@ class SyncManager {
 
       // Sync Transactions
       try {
-        final txResp = await _apiClient.get(ApiEndpoints.transactions);
+        final txResp = await _apiClient.get(ApiEndpoints.transactions, queryParameters: {'limit': 500});
         if (txResp.data != null && txResp.data['success'] == true) {
           final transactions = txResp.data['transactions'] as List<dynamic>? ?? [];
-          await LocalDatabaseService.clearLocalTransactions();
+          final deletedIds = (txResp.data['deletedIds'] as List<dynamic>?)
+                  ?.map((e) => e.toString())
+                  .toList() ??
+              [];
+
+          if (deletedIds.isNotEmpty) {
+            await LocalDatabaseService.deleteLocalTransactions(deletedIds);
+            debugPrint('[SyncManager] Purged ${deletedIds.length} deleted transaction tombstones');
+          }
+
           await LocalDatabaseService.saveLocalTransactions(transactions);
           debugPrint('[SyncManager] Synced ${transactions.length} transactions');
         }

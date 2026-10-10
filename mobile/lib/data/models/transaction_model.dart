@@ -43,11 +43,14 @@ class TransactionModel {
   final String type;
   final String? accountId;
   final String? accountName;
+  final String? toAccountId;
   final String? categoryId;
   final String? categoryName;
   final String? parentCategoryName;
   final String? subCategoryName;
   final String? creditId;
+  final String? creditType; // 'given' (receivable) or 'taken' (liability)
+  final String? merchantName;
   final String? note;
   final String date;
   final bool isItemized;
@@ -59,11 +62,14 @@ class TransactionModel {
     required this.type,
     this.accountId,
     this.accountName,
+    this.toAccountId,
     this.categoryId,
     this.categoryName,
     this.parentCategoryName,
     this.subCategoryName,
     this.creditId,
+    this.creditType,
+    this.merchantName,
     this.note,
     required this.date,
     required this.isItemized,
@@ -74,6 +80,8 @@ class TransactionModel {
     String? accName;
     if (json['accountId'] is Map) {
       accName = json['accountId']['name'];
+    } else if (json['accountName'] != null) {
+      accName = json['accountName'];
     }
 
     String? catName;
@@ -88,13 +96,29 @@ class TransactionModel {
       } else {
         pCatName = cObj['name'];
       }
+    } else {
+      catName = json['categoryName'];
+      pCatName = json['parentCategoryName'];
+      sCatName = json['subCategoryName'];
     }
 
     String? cId;
+    String? cType;
     if (json['creditId'] is Map) {
       cId = json['creditId']['_id'];
+      cType = json['creditId']['type'];
     } else if (json['creditId'] != null) {
       cId = json['creditId'].toString();
+    }
+    if (cType == null && json['creditType'] != null) {
+      cType = json['creditType'].toString();
+    }
+
+    String? mName;
+    if (json['merchantId'] is Map) {
+      mName = json['merchantId']['name'];
+    } else if (json['merchantName'] != null) {
+      mName = json['merchantName'].toString();
     }
 
     final itemList = (json['items'] as List<dynamic>?)
@@ -103,20 +127,45 @@ class TransactionModel {
         [];
 
     return TransactionModel(
-      id: json['_id'] ?? '',
+      id: json['_id'] ?? json['id'] ?? '',
       amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
       type: json['type'] ?? 'expense',
       accountId: json['accountId'] is Map ? json['accountId']['_id'] : json['accountId'],
       accountName: accName,
+      toAccountId: json['toAccountId'] is Map ? json['toAccountId']['_id'] : json['toAccountId'],
       categoryId: json['categoryId'] is Map ? json['categoryId']['_id'] : json['categoryId'],
       categoryName: catName,
       parentCategoryName: pCatName,
       subCategoryName: sCatName,
       creditId: cId,
+      creditType: cType,
+      merchantName: mName,
       note: json['note'] ?? json['notes'],
       date: json['date'] ?? '',
       isItemized: json['isItemized'] ?? false,
       items: itemList,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'amount': amount,
+      'type': type,
+      'accountId': accountId,
+      'accountName': accountName,
+      'toAccountId': toAccountId,
+      'categoryId': categoryId,
+      'categoryName': categoryName,
+      'parentCategoryName': parentCategoryName,
+      'subCategoryName': subCategoryName,
+      'creditId': creditId,
+      'creditType': creditType,
+      'merchantName': merchantName,
+      'note': note,
+      'date': date,
+      'isItemized': isItemized,
+      'items': items.map((i) => i.toJson()).toList(),
+    };
   }
 }

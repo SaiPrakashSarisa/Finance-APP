@@ -7,6 +7,7 @@ import '../../core/constants/app_colors.dart';
 import '../../data/models/analytics_model.dart';
 import '../providers/analytics_provider.dart';
 import '../../core/constants/category_icons.dart';
+import '../widgets/skeleton_loaders.dart';
 
 /// Purpose: Financial Intelligence & Analytics Hub Screen
 /// Author: Antigravity AI
@@ -69,7 +70,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           onRefresh: _refresh,
           color: AppColors.primary,
           child: state.isLoading
-              ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+              ? const AnalyticsScreenSkeleton()
               : SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(16.0),

@@ -52,6 +52,14 @@ const transactionSchema = new mongoose.Schema({
         ref: 'Credit',
         default: null
     },
+    creditType: {
+        type: String,
+        enum: {
+            values: ['given', 'taken', null],
+            message: '{VALUE} is not a valid credit type'
+        },
+        default: null
+    },
     merchantId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Merchant',
@@ -108,6 +116,15 @@ const transactionSchema = new mongoose.Schema({
             default: 0
         }
     }],
+    isDeleted: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
+    deletedAt: {
+        type: Date,
+        default: null
+    },
     createdAt: {
         type: Date,
         default: Date.now
@@ -115,6 +132,8 @@ const transactionSchema = new mongoose.Schema({
 });
 
 transactionSchema.index({ userId: 1, date: -1 });
+transactionSchema.index({ userId: 1, isDeleted: 1, date: -1 });
+transactionSchema.index({ userId: 1, isDeleted: 1, deletedAt: -1 });
 transactionSchema.index({ userId: 1, accountId: 1, date: -1 });
 transactionSchema.index({ userId: 1, type: 1, date: -1 });
 transactionSchema.index({ userId: 1, creditId: 1 });
