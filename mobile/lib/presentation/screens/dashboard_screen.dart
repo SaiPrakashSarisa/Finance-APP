@@ -708,7 +708,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ),
                     ),
                     GestureDetector(
-                      onTap: () => context.go('/transactions'),
+                      onTap: () => context.push('/transactions'),
                       child: Text(
                         'View All',
                         style: GoogleFonts.outfit(

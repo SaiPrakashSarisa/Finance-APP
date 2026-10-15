@@ -336,6 +336,7 @@ class LocalDatabaseService {
       );
     }
     await batch.commit(noResult: true);
+    await deduplicateTransactions();
   }
 
   /// Purge orphaned optimistic transactions that have a matching synced transaction from server
@@ -369,8 +370,6 @@ class LocalDatabaseService {
     DateTime? startDate,
     DateTime? endDate,
   }) async {
-    await deduplicateTransactions();
-
     final database = await db;
     final where = <String>[];
     final whereArgs = <dynamic>[];

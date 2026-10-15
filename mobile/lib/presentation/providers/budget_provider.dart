@@ -54,6 +54,23 @@ class BudgetNotifier extends StateNotifier<BudgetState> {
       final localCategories = await LocalDatabaseService.getLocalCategories();
       final catMap = {for (final c in localCategories) c['id'] as String: c};
 
+      // Calculate actual spending dynamically from local SQLite transactions (<5ms)
+      final startDate = DateTime(year, month, 1);
+      final endDate = DateTime(year, month + 1, 0, 23, 59, 59, 999);
+      final localExpenses = await LocalDatabaseService.getLocalTransactions(
+        type: 'expense',
+        startDate: startDate,
+        endDate: endDate,
+      );
+      final catSpentMap = <String, double>{};
+      for (final tx in localExpenses) {
+        final catId = tx['categoryId'] as String?;
+        final amount = (tx['amount'] as num?)?.toDouble() ?? 0.0;
+        if (catId != null) {
+          catSpentMap[catId] = (catSpentMap[catId] ?? 0.0) + amount;
+        }
+      }
+
       final catSummaryList = <CategoryBudgetSummaryModel>[];
       for (final b in localBudgets) {
         final catId = b['categoryId'] as String? ?? '';
@@ -62,7 +79,7 @@ class BudgetNotifier extends StateNotifier<BudgetState> {
         final catColor = (cat?['color'] as String?) ?? '#6366f1';
         final catIcon = (cat?['icon'] as String?) ?? 'folder';
         final amount = (b['amount'] as num?)?.toDouble() ?? 0.0;
-        final spent = (b['spent'] as num?)?.toDouble() ?? 0.0;
+        final spent = catSpentMap[catId] ?? ((b['spent'] as num?)?.toDouble() ?? 0.0);
         final remaining = amount - spent;
         final percentage = amount > 0 ? (spent / amount) * 100 : 0.0;
 
@@ -178,6 +195,7 @@ class BudgetNotifier extends StateNotifier<BudgetState> {
 
       if (response != null && response.statusCode != null && response.statusCode! < 400) {
         await LocalDatabaseService.saveLocalBudget(budgetMap, isSynced: true);
+        await fetchSummary(month: m, year: y);
       }
 
       return true;
@@ -202,6 +220,7 @@ class BudgetNotifier extends StateNotifier<BudgetState> {
         method: 'DELETE',
         payload: {},
       );
+      await fetchSummary(month: state.selectedMonth, year: state.selectedYear);
 
       return true;
     } catch (e) {

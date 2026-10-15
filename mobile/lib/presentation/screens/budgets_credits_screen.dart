@@ -21,10 +21,37 @@ import '../widgets/skeleton_loaders.dart';
 /// Design System: Stitch Finance Hub Enterprise (Luminous Ledger)
 
 class BudgetsCreditsScreen extends ConsumerStatefulWidget {
-  const BudgetsCreditsScreen({super.key});
+  final int initialTab;
+  final bool isCreditsOnly;
+  final bool isBudgetsOnly;
+
+  const BudgetsCreditsScreen({
+    super.key,
+    this.initialTab = 0,
+    this.isCreditsOnly = false,
+    this.isBudgetsOnly = false,
+  });
 
   @override
   ConsumerState<BudgetsCreditsScreen> createState() => _BudgetsCreditsScreenState();
+}
+
+class BudgetsScreen extends StatelessWidget {
+  const BudgetsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const BudgetsCreditsScreen(isBudgetsOnly: true);
+  }
+}
+
+class CreditsScreen extends StatelessWidget {
+  const CreditsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const BudgetsCreditsScreen(isCreditsOnly: true);
+  }
 }
 
 class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> with SingleTickerProviderStateMixin {
@@ -38,8 +65,18 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.isCreditsOnly ? 1 : widget.initialTab.clamp(0, 1),
+    );
     _refresh();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
@@ -1392,6 +1429,64 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
   Widget build(BuildContext context) {
     final budgetState = ref.watch(budgetProvider);
     final creditState = ref.watch(creditProvider);
+
+    if (widget.isBudgetsOnly) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          elevation: 0,
+          title: Text(
+            'Budgets',
+            style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.onSurface),
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.primary),
+              tooltip: 'Create Budget',
+              onPressed: _showCreateBudgetSheet,
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+        body: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: _refresh,
+            color: AppColors.primary,
+            child: _buildBudgetsTab(budgetState),
+          ),
+        ),
+      );
+    }
+
+    if (widget.isCreditsOnly) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          elevation: 0,
+          title: Text(
+            'Credits',
+            style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.onSurface),
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline_rounded, color: AppColors.primary),
+              tooltip: 'Add Credit/Loan',
+              onPressed: _showAddCreditSheet,
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
+        body: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: _refresh,
+            color: AppColors.primary,
+            child: _buildCreditsTab(creditState),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: AppColors.background,

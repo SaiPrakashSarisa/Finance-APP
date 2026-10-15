@@ -13,6 +13,7 @@ import 'auth_provider.dart';
 import 'account_provider.dart';
 import 'credit_provider.dart';
 import 'analytics_provider.dart';
+import 'budget_provider.dart';
 
 /// Purpose: Offline-First Transaction State Management Provider
 /// Author: Antigravity AI
@@ -90,13 +91,22 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
     final curCat = categoryId ?? state.categoryId;
     final curSearch = search ?? state.searchQuery;
 
-    state = state.copyWith(
-      isLoading: true,
-      activeType: curType,
-      accountId: curAcc,
-      categoryId: curCat,
-      searchQuery: curSearch,
-    );
+    if (state.transactions.isEmpty) {
+      state = state.copyWith(
+        isLoading: true,
+        activeType: curType,
+        accountId: curAcc,
+        categoryId: curCat,
+        searchQuery: curSearch,
+      );
+    } else {
+      state = state.copyWith(
+        activeType: curType,
+        accountId: curAcc,
+        categoryId: curCat,
+        searchQuery: curSearch,
+      );
+    }
 
     try {
       final rows = await LocalDatabaseService.getLocalTransactions(
@@ -256,6 +266,7 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
       await _loadFromLocal();
       await ref.read(accountProvider.notifier).loadFromLocal();
       ref.read(analyticsProvider.notifier).fetchAll();
+      ref.read(budgetProvider.notifier).fetchSummary();
 
       // 4. Background direct API call / queue fallback (Optimistic UI - does NOT block user!)
       unawaited(() async {
@@ -288,6 +299,7 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
           ref.read(accountProvider.notifier).fetchAccounts();
           ref.read(creditProvider.notifier).fetchCredits();
           ref.read(analyticsProvider.notifier).fetchAll();
+          ref.read(budgetProvider.notifier).fetchSummary();
         } catch (e) {
           debugPrint('[TransactionProvider] Background sync error: $e');
         }
@@ -317,6 +329,7 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
       await _loadFromLocal();
       await ref.read(accountProvider.notifier).loadFromLocal();
       ref.read(analyticsProvider.notifier).fetchAll();
+      ref.read(budgetProvider.notifier).fetchSummary();
 
       // 3. Direct API Call in background with fallback to sync_queue
       unawaited(() async {
@@ -333,6 +346,7 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
           ref.read(accountProvider.notifier).fetchAccounts();
           ref.read(creditProvider.notifier).fetchCredits();
           ref.read(analyticsProvider.notifier).fetchAll();
+          ref.read(budgetProvider.notifier).fetchSummary();
         } catch (e) {
           debugPrint('[TransactionProvider] Update background sync error: $e');
         }
@@ -388,6 +402,7 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
       await _loadFromLocal();
       await ref.read(accountProvider.notifier).loadFromLocal();
       ref.read(analyticsProvider.notifier).fetchAll();
+      ref.read(budgetProvider.notifier).fetchSummary();
 
       // 3. Direct API Call First with fallback to sync_queue in background
       unawaited(() async {
@@ -401,6 +416,7 @@ class TransactionNotifier extends StateNotifier<TransactionState> {
           ref.read(accountProvider.notifier).fetchAccounts();
           ref.read(creditProvider.notifier).fetchCredits();
           ref.read(analyticsProvider.notifier).fetchAll();
+          ref.read(budgetProvider.notifier).fetchSummary();
         } catch (e) {
           debugPrint('[TransactionProvider] Delete background sync error: $e');
         }

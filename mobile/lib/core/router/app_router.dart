@@ -7,6 +7,7 @@ import '../../presentation/screens/main_shell_screen.dart';
 import '../../presentation/screens/add_transaction_screen.dart';
 import '../../presentation/screens/accounts_screen.dart';
 import '../../presentation/screens/categories_screen.dart';
+import '../../presentation/screens/transactions_screen.dart';
 
 /// Purpose: Application Navigation Router using GoRouter
 /// Author: Antigravity AI
@@ -49,6 +50,10 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/transactions',
+      builder: (BuildContext context, GoRouterState state) => const TransactionsScreen(),
+    ),
+    GoRoute(
+      path: '/credits',
       builder: (BuildContext context, GoRouterState state) => const MainShellScreen(initialTab: 1),
     ),
     GoRoute(

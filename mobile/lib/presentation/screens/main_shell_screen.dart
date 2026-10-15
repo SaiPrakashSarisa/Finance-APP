@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
+import '../providers/budget_provider.dart';
+import '../providers/credit_provider.dart';
 import 'dashboard_screen.dart';
-import 'transactions_screen.dart';
 import 'budgets_credits_screen.dart';
 import 'analytics_screen.dart';
 import 'profile_settings_screen.dart';
@@ -12,27 +14,51 @@ import 'profile_settings_screen.dart';
 /// Author: Antigravity AI
 /// Design System: Stitch Finance Hub Enterprise
 
-class MainShellScreen extends StatefulWidget {
+class MainShellScreen extends ConsumerStatefulWidget {
   final int initialTab;
   const MainShellScreen({super.key, this.initialTab = 0});
 
   @override
-  State<MainShellScreen> createState() => _MainShellScreenState();
+  ConsumerState<MainShellScreen> createState() => _MainShellScreenState();
 }
 
-class _MainShellScreenState extends State<MainShellScreen> {
+class _MainShellScreenState extends ConsumerState<MainShellScreen> {
   late int _currentIndex;
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.initialTab;
+    if (_currentIndex == 2) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(budgetProvider.notifier).fetchSummary();
+      });
+    } else if (_currentIndex == 1) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(creditProvider.notifier).fetchCredits();
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(MainShellScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialTab != oldWidget.initialTab) {
+      setState(() {
+        _currentIndex = widget.initialTab;
+      });
+      if (_currentIndex == 2) {
+        ref.read(budgetProvider.notifier).fetchSummary();
+      } else if (_currentIndex == 1) {
+        ref.read(creditProvider.notifier).fetchCredits();
+      }
+    }
   }
 
   final List<Widget> _screens = const [
     DashboardScreen(),
-    TransactionsScreen(),
-    BudgetsCreditsScreen(),
+    CreditsScreen(),
+    BudgetsScreen(),
     AnalyticsScreen(),
     ProfileSettingsScreen(),
   ];
@@ -105,7 +131,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
                     onTap: () {
                       Navigator.pop(context);
                       setState(() {
-                        _currentIndex = 2; // Switch to Budgets & Credits
+                        _currentIndex = 1; // Switch to Credits
                       });
                     },
                   ),
@@ -210,6 +236,11 @@ class _MainShellScreenState extends State<MainShellScreen> {
             setState(() {
               _currentIndex = index;
             });
+            if (index == 2) {
+              ref.read(budgetProvider.notifier).fetchSummary();
+            } else if (index == 1) {
+              ref.read(creditProvider.notifier).fetchCredits();
+            }
           },
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -224,8 +255,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
               label: 'Home',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.receipt_long_rounded),
-              label: 'Ledger',
+              icon: Icon(Icons.handshake_rounded),
+              label: 'Credits',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.account_balance_rounded),
