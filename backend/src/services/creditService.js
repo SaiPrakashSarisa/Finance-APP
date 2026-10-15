@@ -20,7 +20,7 @@ const creditService = {
             .populate('linkedAccountId', 'name type');
     },
 
-    // Create credit entry and update balance
+    // Create credit entry, record transaction in ledger, and update balance
     async create(data, session = null) {
         data.remainingAmount = data.amount;
 
@@ -33,11 +33,48 @@ const creditService = {
         const credit = new Credit(data);
         await credit.save(options);
 
-        // Update account balance
-        if (data.type === 'given' && data.linkedAccountId) {
-            await accountService.updateBalance(data.linkedAccountId, -data.amount, session);
-        } else if (data.type === 'taken' && data.subType === 'account_credit' && data.linkedAccountId) {
-            await accountService.updateBalance(data.linkedAccountId, data.amount, session);
+        // Update account balance and record ledger transaction
+        if (data.linkedAccountId) {
+            const Transaction = require('../models/Transaction');
+            if (data.type === 'given') {
+                const tx = new Transaction({
+                    userId: data.userId,
+                    accountId: data.linkedAccountId,
+                    type: 'expense',
+                    amount: data.amount,
+                    creditId: credit._id,
+                    creditType: 'given',
+                    note: data.notes ? `Credit given to ${data.personName}: ${data.notes}` : `Credit given to ${data.personName}`,
+                    date: data.createdAt || new Date()
+                });
+                await tx.save(options);
+
+                await accountService.updateBalance(data.linkedAccountId, -data.amount, session, true, {
+                    userId: data.userId,
+                    transactionId: tx._id,
+                    type: 'transaction',
+                    description: `Credit given to ${data.personName}`
+                });
+            } else if (data.type === 'taken' && data.subType === 'account_credit') {
+                const tx = new Transaction({
+                    userId: data.userId,
+                    accountId: data.linkedAccountId,
+                    type: 'income',
+                    amount: data.amount,
+                    creditId: credit._id,
+                    creditType: 'taken',
+                    note: data.notes ? `Credit received from ${data.personName}: ${data.notes}` : `Credit received from ${data.personName}`,
+                    date: data.createdAt || new Date()
+                });
+                await tx.save(options);
+
+                await accountService.updateBalance(data.linkedAccountId, data.amount, session, true, {
+                    userId: data.userId,
+                    transactionId: tx._id,
+                    type: 'transaction',
+                    description: `Credit received from ${data.personName}`
+                });
+            }
         }
         // emi_loan: no balance update
 

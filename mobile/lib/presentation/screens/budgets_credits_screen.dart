@@ -824,13 +824,13 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
                     const SizedBox(height: 12),
 
                     // Account Selector (if applicable)
-                    if (subType == 'account_credit') ...[
+                    if (type == 'given' || subType == 'account_credit') ...[
                       DropdownButtonFormField<String>(
                         value: selectedAccountId,
                         dropdownColor: AppColors.surfaceContainerHigh,
                         style: GoogleFonts.outfit(color: AppColors.onSurface),
                         decoration: InputDecoration(
-                          labelText: 'Linked Account',
+                          labelText: type == 'given' ? 'Debited From (Account)' : 'Credited Into (Account)',
                           labelStyle: GoogleFonts.outfit(color: AppColors.outline),
                           filled: true,
                           fillColor: AppColors.surfaceContainerHigh,
@@ -886,13 +886,14 @@ class _BudgetsCreditsScreenState extends ConsumerState<BudgetsCreditsScreen> wit
                                 'personName': person,
                                 'amount': amt,
                                 'notes': notesController.text.trim(),
-                                if (subType == 'account_credit' && selectedAccountId != null) 'linkedAccountId': selectedAccountId,
+                                if ((type == 'given' || subType == 'account_credit') && selectedAccountId != null) 'linkedAccountId': selectedAccountId,
                                 if (selectedDueDate != null) 'dueDate': selectedDueDate!.toIso8601String(),
                               };
 
                               final ok = await ref.read(creditProvider.notifier).addCredit(body);
                               if (ok && mounted) {
                                 ref.read(accountProvider.notifier).fetchAccounts();
+                                ref.read(transactionProvider.notifier).fetchTransactions();
                                 ref.read(analyticsProvider.notifier).fetchAll();
                                 Navigator.pop(context);
                                 ScaffoldMessenger.of(context).showSnackBar(
